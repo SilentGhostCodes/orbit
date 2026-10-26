@@ -72,7 +72,18 @@ jobs:
           } > android/key.properties
 
       - name: Build
-        run: flutter build apk --release --split-per-abi --target lib/main_prod.dart
+        run: |
+          set -o pipefail
+          flutter build apk --release --split-per-abi --target lib/main_prod.dart 2>&1 | tee build.log
+
+      # Annotations are readable through the API even where the raw log is not.
+      - name: Report build errors
+        if: failure()
+        run: |
+          grep -E -i -B2 -A8 "error|what went wrong|exception|failed" build.log | tail -n 120 > errors.txt || true
+          [ -s errors.txt ] || tail -n 120 build.log > errors.txt
+          msg=$(sed -e 's/%/%25/g' errors.txt | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=flutter build apk::${msg}"
 
       - name: Collect
         run: |
