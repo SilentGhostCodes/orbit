@@ -12,6 +12,7 @@ import 'package:hiddify/features/profile/data/profile_path_resolver.dart';
 import 'package:hiddify/features/profile/model/profile_entity.dart';
 import 'package:hiddify/features/profile/model/profile_failure.dart';
 import 'package:hiddify/features/profile/model/profile_sort_enum.dart';
+import 'package:hiddify/orbit/utils/xray_json.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/hiddifycore/hiddify_core_service.dart';
 import 'package:hiddify/utils/custom_loggers.dart';
@@ -281,6 +282,8 @@ class ProfileRepositoryImpl with ExceptionHandler, InfraLogger implements Profil
             (overridedOptions) => _singbox
                 .changeOptions(overridedOptions)
                 .mapLeft(ProfileFailure.invalidConfig)
+                // Orbit: the core reads JSON as sing-box only, so Xray JSON subscriptions become links first
+                .flatMap((_) => TaskEither.tryCatch(() => convertXrayJsonFile(tempPath), ProfileFailure.unexpected))
                 .flatMap(
                   (_) => _singbox.validateConfigByPath(path, tempPath, debug).mapLeft(ProfileFailure.invalidConfig),
                 ),

@@ -11,7 +11,100 @@ permissions:
   contents: write
 
 jobs:
+  # Orbit's build of the Hiddify core: upstream plus a working xray outbound (core/README.md).
+  # It takes a while, so it is cached until something in core/ changes.
+  core:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cached core
+        id: cache
+        uses: actions/cache/restore@v5
+        with:
+          path: core-out
+          key: hiddify-core-android-${{ hashFiles('core/**') }}
+
+      - name: Check out hiddify-core
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          # ray2sing is an ssh submodule; the runner has no key for it
+          git config --global url."https://github.com/".insteadOf "git@github.com:"
+          git clone https://github.com/hiddify/hiddify-core hiddify-core-src
+          cd hiddify-core-src
+          git checkout "$(cat ../core/HIDDIFY_CORE_COMMIT)"
+          git submodule update --init --recursive
+
+      - name: Apply Orbit's xray outbound
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          dir=hiddify-core-src/hiddify-sing-box/protocol/hiddify/xray
+          rm -f "$dir/h_outbound_test.go"
+          cp core/xray/*.go "$dir/"
+
+      - uses: actions/setup-go@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          go-version-file: hiddify-core-src/go.mod
+          cache-dependency-path: hiddify-core-src/go.sum
+
+      - uses: actions/setup-java@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          distribution: zulu
+          java-version: 17
+
+      - uses: nttld/setup-ndk@v1
+        if: steps.cache.outputs.cache-hit != 'true'
+        id: ndk
+        with:
+          ndk-version: r28
+
+      - name: Test the xray outbound
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: hiddify-core-src/hiddify-sing-box
+        env:
+          GOFLAGS: -mod=mod
+        run: |
+          set -o pipefail
+          go test ./protocol/hiddify/xray/ -run TestXray -v -timeout 120s 2>&1 | tee "$GITHUB_WORKSPACE/core.log"
+
+      - name: Build hiddify-core.aar
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: hiddify-core-src
+        env:
+          GOFLAGS: -mod=mod
+          ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -o pipefail
+          make android 2>&1 | tee -a "$GITHUB_WORKSPACE/core.log"
+          mkdir -p ../core-out
+          cp bin/hiddify-core.aar ../core-out/
+          ls -la ../core-out
+
+      - name: Report core errors
+        if: failure()
+        run: |
+          touch core.log
+          grep -E -i -B3 -A6 "error|fail|panic|cannot|undefined" core.log | tail -n 120 > errors.txt || true
+          [ -s errors.txt ] || tail -n 120 core.log > errors.txt
+          msg=$(sed -e 's/%/%25/g' errors.txt | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=hiddify-core::${msg}"
+
+      - uses: actions/cache/save@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: core-out
+          key: hiddify-core-android-${{ hashFiles('core/**') }}
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: hiddify-core-android
+          path: core-out/hiddify-core.aar
+          retention-days: 1
+
   apk:
+    needs: core
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -43,13 +136,11 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
-      # The app code follows Hiddify's main branch, which builds against the core's rolling "draft"
-      # release (Makefile, non-prod channel); the numbered core.version lags behind it.
-      - name: Download the Hiddify core for Android
-        run: |
-          mkdir -p android/app/libs
-          curl -fL "https://github.com/hiddify/hiddify-core/releases/download/draft/hiddify-lib-android.tar.gz" \
-            | tar xz -C android/app/libs/
+      - name: Orbit's core
+        uses: actions/download-artifact@v5
+        with:
+          name: hiddify-core-android
+          path: android/app/libs
 
       - name: Code generation
         run: |

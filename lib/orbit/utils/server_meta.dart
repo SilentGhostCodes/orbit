@@ -98,6 +98,7 @@ String protocolLabel(String type, {String? transport, bool reality = false}) {
     'socks' => 'SOCKS',
     'http' => 'HTTP',
     'anytls' => 'AnyTLS',
+    'xray' => 'Xray',
     'urltest' => 'Авто',
     'selector' => 'Группа',
     '' => '',
@@ -105,7 +106,7 @@ String protocolLabel(String type, {String? transport, bool reality = false}) {
   };
   if (reality) return '$base Reality';
   final t = transport?.toLowerCase();
-  if (t == null || t.isEmpty || t == 'tcp') return base;
+  if (t == null || t.isEmpty || t == 'tcp' || t == 'raw') return base;
   final label = switch (t) {
     'xhttp' || 'splithttp' => 'XHTTP',
     'httpupgrade' => 'HTTPUpgrade',

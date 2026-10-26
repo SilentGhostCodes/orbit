@@ -12,6 +12,7 @@ import 'package:hiddify/features/profile/overview/profiles_notifier.dart';
 import 'package:hiddify/features/proxy/overview/proxies_overview_notifier.dart';
 import 'package:hiddify/hiddifycore/generated/v2/hcore/hcore.pb.dart';
 import 'package:hiddify/orbit/utils/server_meta.dart';
+import 'package:hiddify/orbit/utils/xray_json.dart';
 import 'package:hiddify/utils/utils.dart';
 import 'package:hooks_riverpod/hooks_riverpod.dart';
 
@@ -92,6 +93,11 @@ class OfflineServer {
 
 const _notServers = {'direct', 'block', 'dns', 'selector', 'urltest', 'loadbalance', 'balancer'};
 
+OfflineServer _xrayServer(String tag, Map<String, dynamic> config) {
+  final d = describeXrayConfig(config);
+  return OfflineServer(tag: tag, type: d.protocol, transport: d.network, reality: d.reality);
+}
+
 List<OfflineServer> parseServers(String content) {
   final trimmed = content.trim();
   if (trimmed.startsWith('{')) {
@@ -103,7 +109,9 @@ List<OfflineServer> parseServers(String content) {
       ];
       return [
         for (final o in outbounds.whereType<Map>())
-          if (o['tag'] is String && !_notServers.contains(o['type']))
+          if (o['tag'] is String && o['type'] == 'xray' && o['xconfig'] is Map<String, dynamic>)
+            _xrayServer(o['tag'] as String, o['xconfig'] as Map<String, dynamic>)
+          else if (o['tag'] is String && !_notServers.contains(o['type']))
             OfflineServer(
               tag: o['tag'] as String,
               type: (o['type'] ?? '').toString(),

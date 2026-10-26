@@ -6,7 +6,6 @@ import 'package:hiddify/core/model/region.dart';
 import 'package:hiddify/core/preferences/general_preferences.dart';
 import 'package:hiddify/features/app_based_routing/model/pkg_flag.dart';
 import 'package:hiddify/features/app_based_routing/overview/app_list_notifier.dart';
-import 'package:hiddify/features/profile/notifier/profiles_update_notifier.dart';
 import 'package:hiddify/features/settings/data/config_option_repository.dart';
 import 'package:hiddify/gen/translations.g.dart';
 import 'package:hiddify/orbit/state/orbit_providers.dart';
@@ -112,23 +111,8 @@ class OrbitSettingsPage extends ConsumerWidget {
             OrbitSwitchTile(
               title: 'Фрагментация TLS',
               value: fragment,
-              onChanged: (v) => ref.read(ConfigOptions.enableTlsFragment.notifier).update(v),
-            ),
-            OrbitSwitchTile(
-              title: 'Ядро Xray',
-              subtitle: 'Для XHTTP и серверов за CDN',
-              value: ref.watch(ConfigOptions.useXrayCoreWhenPossible),
               divider: false,
-              onChanged: (v) async {
-                await ref.read(ConfigOptions.useXrayCoreWhenPossible.notifier).update(v);
-                // the panel picks the config format by the user agent of the next download
-                await ref.read(foregroundProfilesUpdateNotifierProvider.notifier).trigger();
-                if (context.mounted) {
-                  ScaffoldMessenger.of(context).showSnackBar(
-                    const SnackBar(content: Text('Подписки обновлены. Переподключитесь, если VPN включён')),
-                  );
-                }
-              },
+              onChanged: (v) => ref.read(ConfigOptions.enableTlsFragment.notifier).update(v),
             ),
             const SectionLabel('Приложение'),
             OrbitTile(
