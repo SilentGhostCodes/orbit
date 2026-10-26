@@ -43,11 +43,12 @@ jobs:
           key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
+      # The app code follows Hiddify's main branch, which builds against the core's rolling "draft"
+      # release (Makefile, non-prod channel); the numbered core.version lags behind it.
       - name: Download the Hiddify core for Android
         run: |
-          CORE_VERSION=$(grep -oP '^core.version=\K.+' dependencies.properties)
           mkdir -p android/app/libs
-          curl -fL "https://github.com/hiddify/hiddify-core/releases/download/v${CORE_VERSION}/hiddify-lib-android.tar.gz" \
+          curl -fL "https://github.com/hiddify/hiddify-core/releases/download/draft/hiddify-lib-android.tar.gz" \
             | tar xz -C android/app/libs/
 
       - name: Code generation
