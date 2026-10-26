@@ -1,0 +1,36 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:orbit/core/libxray.dart';
+import 'package:orbit/state/providers.dart';
+import 'package:orbit/theme/orbit_theme.dart';
+import 'package:orbit/widgets/orbit_widgets.dart';
+
+final _xrayVersionProvider = FutureProvider.autoDispose<String>((ref) => LibXray.version());
+
+class AboutPage extends ConsumerWidget {
+  const AboutPage({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final version = ref.watch(bootProvider).version;
+    final xray = ref.watch(_xrayVersionProvider).value;
+    return Scaffold(
+      appBar: AppBar(titleSpacing: 0, title: const Text('О приложении', style: OrbitText.sheetTitle)),
+      body: ListView(
+        padding: const EdgeInsets.fromLTRB(20, 24, 20, 24),
+        children: [
+          const Center(child: OrbitLogo(size: 72)),
+          const SizedBox(height: 18),
+          const Center(child: Text('Orbit', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700))),
+          const SizedBox(height: 6),
+          Center(child: Text('Версия $version', style: OrbitText.caption)),
+          const SizedBox(height: 28),
+          OrbitTile(title: 'Версия приложения', value: version),
+          OrbitTile(title: 'Ядро', value: xray == null ? 'Xray-core' : 'Xray-core $xray'),
+          const OrbitTile(title: 'Протоколы', value: 'VLESS, VMess, Trojan, Shadowsocks, Hysteria2'),
+          const OrbitTile(title: 'Подписки', value: 'Xray JSON, ссылки, base64', divider: false),
+        ],
+      ),
+    );
+  }
+}

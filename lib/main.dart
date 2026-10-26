@@ -1,34 +1,59 @@
-// Dev channel entrypoint. Twin file: lib/main_prod.dart, the prod channel one.
-// The Makefile picks between the two through CHANNEL, so keep them in sync.
+import 'dart:io';
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-
 import 'package:flutter/services.dart';
-import 'package:flutter_driver/driver_extension.dart';
-import 'package:hiddify/bootstrap.dart';
-import 'package:hiddify/core/model/environment.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:orbit/core/xray_config.dart';
+import 'package:orbit/data/models.dart';
+import 'package:orbit/data/settings.dart';
+import 'package:orbit/data/subscription_repo.dart';
+import 'package:orbit/state/providers.dart';
+import 'package:orbit/theme/orbit_theme.dart';
+import 'package:orbit/ui/shell.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+import 'package:path_provider/path_provider.dart';
 
 Future<void> main() async {
-  // Debug and profile builds that ask for it: lets an external client tap, type
-  // and scroll the app. Profile too, because the iPhone build running on a Mac
-  // only starts as a profile build. Behind a flag because the extension installs
-  // a TestTextInput that takes over the text input channel — with it on, no field
-  // in the app accepts a real keyboard. Run with --dart-define=driver=true to
-  // drive it. Never in release.
-  // Must come first: it installs the binding that ensureInitialized() reuses.
-  if (!kReleaseMode && const bool.fromEnvironment('driver')) {
-    enableFlutterDriverExtension();
-  }
-
-  final widgetsBinding = WidgetsFlutterBinding.ensureInitialized();
-  // final widgetsBinding = SentryWidgetsFlutterBinding.ensureInitialized();
-  // debugPaintSizeEnabled = true;
-
+  WidgetsFlutterBinding.ensureInitialized();
   SystemChrome.setEnabledSystemUIMode(SystemUiMode.edgeToEdge);
   SystemChrome.setSystemUIOverlayStyle(
-    const SystemUiOverlayStyle(statusBarColor: Colors.transparent, systemNavigationBarColor: Colors.transparent),
+    const SystemUiOverlayStyle(
+      statusBarColor: Colors.transparent,
+      statusBarIconBrightness: Brightness.light,
+      systemNavigationBarColor: OrbitColors.background,
+      systemNavigationBarIconBrightness: Brightness.light,
+    ),
   );
 
-  return await lazyBootstrap(widgetsBinding, Environment.dev);
+  final results = await Future.wait([
+    PackageInfo.fromPlatform(),
+    OrbitSettings.load(),
+    SubscriptionRepo.load(),
+    getApplicationSupportDirectory(),
+    rootBundle.loadString('assets/geo/ru4.txt'),
+    rootBundle.loadString('assets/geo/ru6.txt'),
+  ]);
+  final boot = Boot(
+    version: (results[0] as PackageInfo).version,
+    settings: results[1] as OrbitSettings,
+    subscriptions: results[2] as List<Subscription>,
+    logPath: '${(results[3] as Directory).path}/xray.log',
+    ruCidrs: [...parseCidrList(results[4] as String), ...parseCidrList(results[5] as String)],
+  );
+
+  runApp(ProviderScope(overrides: [bootProvider.overrideWithValue(boot)], child: const OrbitApp()));
+}
+
+class OrbitApp extends StatelessWidget {
+  const OrbitApp({super.key});
+
+  @override
+  Widget build(BuildContext context) => MaterialApp(
+    title: 'Orbit',
+    debugShowCheckedModeBanner: false,
+    theme: orbitTheme(),
+    darkTheme: orbitTheme(),
+    themeMode: ThemeMode.dark,
+    home: const Shell(),
+  );
 }

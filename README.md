@@ -1,49 +1,43 @@
 # Orbit
 
-A minimal Android VPN client for personal use, built on top of
-[Hiddify](https://github.com/hiddify/hiddify-app) (sing-box core, Flutter).
+A minimal Android VPN client, written from scratch in Flutter/Dart on top of
+[Xray-core](https://github.com/XTLS/Xray-core) (through XTLS's [libXray](https://github.com/XTLS/libXray)).
 
-Orbit keeps all of Hiddify's engine (subscriptions, VLESS / Reality / XHTTP, Hysteria2, Trojan,
-TUN, routing, per-app proxy) and replaces the interface with the Orbit design: three tabs, a
-flower-shaped connect button and a mint `#3DD6A0` accent.
+- **Subscriptions:** Xray JSON (Remnawave, Marzban) as the panel wrote it, share links and base64
+  through libXray. Traffic and expiry from `subscription-userinfo`, the name from `profile-title`.
+  The User-Agent is `Orbit/<version> (android)`: in Remnawave, add `orbit` to the XRAY_JSON rule.
+- **Protocols:** whatever Xray-core runs — VLESS (Reality, XHTTP, WS, gRPC…), VMess, Trojan,
+  Shadowsocks, Hysteria2; CDN setups with XHTTP `extra`/`downloadSettings` included.
+- **Tunnel:** Android's VPN descriptor goes straight to Xray's own `tun` inbound; one Xray instance
+  is the whole VPN. It runs in a separate process (`:vpn`), so pings work while connected.
+- **Routing:** «Обход RU» (Russian domains and IP ranges direct, list in `assets/geo/`) or everything
+  through the server; per-app include/exclude; DNS over HTTPS through the server; TLS fragmentation.
+- Auto-connect on start and boot, a quick settings tile, logs in the app.
 
-## What changed from Hiddify
+## Layout
 
-- New UI in `lib/orbit/`: home, servers, settings, apps through VPN, subscription sheets, theme
-  (Manrope + JetBrains Mono, dark only).
-- Router (`lib/core/router/go_router/routing_config_notifier.dart`) points at the Orbit screens;
-  Hiddify's full settings stay reachable under Settings → Дополнительно.
-- No intro screen; Russian locale and "bypass RU" routing by default.
-- Auto-connect on app start and on boot (`orbit_auto_connect`, read by `BootReceiver`).
-- Kill Switch row opens Android's VPN settings (Always-on + block connections without VPN).
-- Android: app id `app.orbit.client`, name and icons "Orbit"; Hiddify's CI replaced by
-  `.github/workflows/android.yml`.
+| Path | What |
+| --- | --- |
+| `lib/core/` | `native.dart` (channels to Kotlin), `libxray.dart`, `xray_config.dart` (the config the tunnel runs) |
+| `lib/data/` | models, subscription parsing and storage, settings |
+| `lib/state/` | Riverpod providers: subscriptions, VPN status, pings, connecting |
+| `lib/ui/`, `lib/widgets/`, `lib/theme/` | screens and the Orbit look |
+| `android/app/src/main/kotlin/app/orbit/client/` | `OrbitVpnService` (tunnel), `MainActivity` (bridge), tile, boot receiver |
+| `core/LIBXRAY_COMMIT` | the libXray commit CI builds |
 
 ## Building
 
-GitHub Actions builds the APKs on every push to `main` (artifact **Orbit-android**) and attaches
-them to a release for tags `v*`.
-
-To keep updates installable over each other, add a signing key as repository secrets:
+GitHub Actions builds libXray (cached until `core/` changes) and the APKs on every push to `main`,
+and publishes them as a release. To install updates over each other, add a signing key as secrets:
 
 ```bash
 keytool -genkey -v -keystore orbit.jks -keyalg RSA -keysize 2048 -validity 10000 -alias orbit
 base64 -w0 orbit.jks   # → ANDROID_SIGNING_KEY
 ```
 
-and set `ANDROID_SIGNING_STORE_PASSWORD`, `ANDROID_SIGNING_KEY_PASSWORD`,
-`ANDROID_SIGNING_KEY_ALIAS` (`orbit`). Without them every build is signed with a throwaway debug key.
+plus `ANDROID_SIGNING_STORE_PASSWORD`, `ANDROID_SIGNING_KEY_PASSWORD`, `ANDROID_SIGNING_KEY_ALIAS`.
 
-Locally (Flutter 3.38, JDK 17, Android SDK):
+Locally: build libXray (`python3 build/main.py android` in a libXray checkout), put `libXray.aar`
+in `android/app/libs/`, then `flutter build apk --split-per-abi`.
 
-```bash
-make android-prepare          # deps, codegen, downloads the core into android/app/libs
-flutter build apk --split-per-abi --target lib/main_prod.dart
-```
-
-Screen previews: `flutter test test/orbit --update-goldens` → `test/orbit/goldens/`.
-
-## License
-
-Hiddify is licensed under the [Hiddify Extended GPLv3](LICENSE.md); Orbit is a personal,
-non-commercial modification of it and keeps that license.
+`flutter test --update-goldens test/preview_test.dart` renders the screens to `test/goldens/`.

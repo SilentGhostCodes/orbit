@@ -1,11 +1,8 @@
-*.crt
-*.p12
 # Miscellaneous
 *.class
 *.log
 *.pyc
 *.swp
-.sentry-native
 .DS_Store
 .atom/
 .build/
@@ -14,7 +11,7 @@
 .svn/
 .swiftpm/
 migrate_working_dir/
-.github/help
+
 # IntelliJ related
 *.iml
 *.ipr
@@ -30,30 +27,11 @@ migrate_working_dir/
 **/doc/api/
 **/ios/Flutter/.last_build_id
 .dart_tool/
-.flutter-plugins
 .flutter-plugins-dependencies
-.packages
 .pub-cache/
 .pub/
 /build/
-
-# generated files
-**/*.g.dart
-**/*.freezed.dart
-**/*.mapper.dart
-**/*.gen.dart
-
-# slang analysis reports (dart run slang analyze)
-_missing_translations*.json
-_unused_translations*.json
-**/*.dll
-**/*.dylib
-**/*.xcframework
-/dist/
-/dist_docker/
-
-/assets/core/*
-!/assets/core/.gitkeep
+/coverage/
 
 # Symbolication related
 app.*.symbols
@@ -65,17 +43,3 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
-
-
-/data
-.cxx
-
-# Windows Self-Signed for msix
-windows/sign.pfx
-windows/sign.cer
-
-# local signing material
-/cert.pem
-/key.pem
-/sign.pfx
-.ci-secrets-export/

@@ -1,0 +1,337 @@
+import 'dart:async';
+import 'dart:convert';
+
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:orbit/core/libxray.dart';
+import 'package:orbit/core/native.dart';
+import 'package:orbit/core/xray_config.dart';
+import 'package:orbit/data/models.dart';
+import 'package:orbit/data/settings.dart';
+import 'package:orbit/data/subscription_repo.dart';
+
+/// What main() reads before the first frame.
+class Boot {
+  const Boot({
+    required this.version,
+    required this.settings,
+    required this.subscriptions,
+    required this.ruCidrs,
+    required this.logPath,
+  });
+
+  final String version;
+  final OrbitSettings settings;
+  final List<Subscription> subscriptions;
+  final List<String> ruCidrs;
+  final String logPath;
+
+  String get userAgent => 'Orbit/$version (android)';
+}
+
+final bootProvider = Provider<Boot>((ref) => throw UnimplementedError('overridden in main'));
+
+// --- settings ---
+
+final settingsProvider = NotifierProvider<SettingsNotifier, OrbitSettings>(SettingsNotifier.new);
+
+class SettingsNotifier extends Notifier<OrbitSettings> {
+  @override
+  OrbitSettings build() => ref.read(bootProvider).settings;
+
+  /// [reconnect]: the change shapes the tunnel (routing, DNS, apps…), so a running one restarts.
+  Future<void> change(OrbitSettings Function(OrbitSettings s) edit, {bool reconnect = false}) async {
+    state = edit(state);
+    await state.save();
+    if (reconnect) await ref.read(connectionProvider.notifier).reconnectIfConnected();
+  }
+
+  Future<void> selectServer(String subscriptionId, String? serverName) => change(
+    (s) => s.copyWith(
+      selectedServers: {
+        for (final e in s.selectedServers.entries)
+          if (e.key != subscriptionId) e.key: e.value,
+        subscriptionId: ?serverName,
+      },
+    ),
+  );
+}
+
+// --- subscriptions ---
+
+final subscriptionsProvider = NotifierProvider<SubscriptionsNotifier, List<Subscription>>(SubscriptionsNotifier.new);
+
+/// Subscription ids being downloaded right now.
+final updatingProvider = NotifierProvider<UpdatingNotifier, Set<String>>(UpdatingNotifier.new);
+
+class UpdatingNotifier extends Notifier<Set<String>> {
+  @override
+  Set<String> build() => const {};
+
+  void set(String id, bool on) => state = on ? {...state, id} : ({...state}..remove(id));
+}
+
+class SubscriptionsNotifier extends Notifier<List<Subscription>> {
+  @override
+  List<Subscription> build() => ref.read(bootProvider).subscriptions;
+
+  SubscriptionRepo get _repo => SubscriptionRepo(ref.read(bootProvider).userAgent);
+
+  Future<void> _store(List<Subscription> next) async {
+    state = next;
+    await SubscriptionRepo.save(next);
+    final settings = ref.read(settingsProvider);
+    if (settings.activeSubscription == null || !next.any((s) => s.id == settings.activeSubscription)) {
+      await ref
+          .read(settingsProvider.notifier)
+          .change((s) => next.isEmpty ? s.copyWith(clearActive: true) : s.copyWith(activeSubscription: next.first.id));
+    }
+  }
+
+  /// A subscription link, or share links / Xray JSON pasted as text.
+  Future<Subscription> add(String input, {bool autoUpdate = true, int updateHours = 12}) async {
+    final text = input.trim();
+    final id = DateTime.now().microsecondsSinceEpoch.toString();
+    final Subscription sub;
+    if (text.startsWith('http://') || text.startsWith('https://')) {
+      final existing = state.where((s) => s.url == text).firstOrNull;
+      if (existing != null) {
+        await refresh(existing.id);
+        return state.firstWhere((s) => s.id == existing.id);
+      }
+      final r = await _repo.fetch(text);
+      sub = Subscription(
+        id: id,
+        url: text,
+        name: r.info.title ?? r.fallbackName,
+        servers: r.servers,
+        updatedAt: DateTime.now(),
+        upload: r.info.upload,
+        download: r.info.download,
+        total: r.info.total,
+        expire: r.info.expire,
+        autoUpdate: autoUpdate,
+        updateHours: r.info.updateHours ?? updateHours,
+      );
+    } else {
+      sub = Subscription(
+        id: id,
+        name: 'Мои серверы',
+        servers: await SubscriptionRepo.parseBody(text),
+        updatedAt: DateTime.now(),
+        autoUpdate: false,
+      );
+    }
+    await _store([...state, sub]);
+    // a new subscription becomes the one in use
+    await ref.read(settingsProvider.notifier).change((s) => s.copyWith(activeSubscription: sub.id));
+    return sub;
+  }
+
+  Future<void> refresh(String id) async {
+    final sub = state.where((s) => s.id == id).firstOrNull;
+    if (sub?.url == null) return;
+    final updating = ref.read(updatingProvider.notifier);
+    updating.set(id, true);
+    try {
+      final r = await _repo.fetch(sub!.url!);
+      await _store([
+        for (final s in state)
+          if (s.id == id)
+            s.copyWith(
+              name: r.info.title ?? s.name,
+              servers: r.servers,
+              updatedAt: DateTime.now(),
+              upload: r.info.upload,
+              download: r.info.download,
+              total: r.info.total,
+              expire: r.info.expire,
+              clearExpire: r.info.expire == null,
+            )
+          else
+            s,
+      ]);
+    } finally {
+      updating.set(id, false);
+    }
+    // the running tunnel uses the old copy of the server
+    if (ref.read(settingsProvider).activeSubscription == id) {
+      await ref.read(connectionProvider.notifier).reconnectIfConnected();
+    }
+  }
+
+  /// [onlyDue]: just the ones whose auto-update interval has passed. Errors are left out quietly.
+  Future<void> refreshAll({bool onlyDue = false}) async {
+    for (final s in [...state]) {
+      if (s.url == null || (onlyDue && !s.needsUpdate)) continue;
+      try {
+        await refresh(s.id);
+      } on Object {
+        // shown on the next manual update instead
+      }
+    }
+  }
+
+  Future<void> remove(String id) async {
+    final wasActive = ref.read(settingsProvider).activeSubscription == id;
+    await _store([...state.where((s) => s.id != id)]);
+    if (wasActive) await ref.read(connectionProvider.notifier).disconnect();
+  }
+
+  Future<void> setAutoUpdate(String id, bool on) async =>
+      _store([for (final s in state) s.id == id ? s.copyWith(autoUpdate: on) : s]);
+}
+
+final activeSubscriptionProvider = Provider<Subscription?>((ref) {
+  final subs = ref.watch(subscriptionsProvider);
+  final id = ref.watch(settingsProvider.select((s) => s.activeSubscription));
+  return subs.where((s) => s.id == id).firstOrNull ?? subs.firstOrNull;
+});
+
+// --- VPN status ---
+
+final vpnStatusProvider = StreamProvider<VpnStatus>((ref) async* {
+  yield await Native.status();
+  yield* Native.statusStream;
+});
+
+final vpnStateProvider = Provider<VpnState>(
+  (ref) => ref.watch(vpnStatusProvider).value?.state ?? VpnState.disconnected,
+);
+
+// --- pings ---
+
+class Pings {
+  const Pings({this.delays = const {}, this.running = const {}});
+
+  /// Milliseconds by [key]; null for a server that did not answer.
+  final Map<String, int?> delays;
+  final Set<String> running;
+
+  static String key(String subscriptionId, String server) => '$subscriptionId|$server';
+
+  /// For [PingLabel]: null when not tested yet, -1 when the server did not answer.
+  int? shown(String subscriptionId, String server) {
+    final k = key(subscriptionId, server);
+    return delays.containsKey(k) ? (delays[k] ?? -1) : null;
+  }
+}
+
+final pingsProvider = NotifierProvider<PingsNotifier, Pings>(PingsNotifier.new);
+
+class PingsNotifier extends Notifier<Pings> {
+  @override
+  Pings build() => const Pings();
+
+  /// Pings every server of [sub] at once. The app itself is outside the tunnel, so this is the real
+  /// round trip to each server, connected or not.
+  Future<Map<String, int?>> pingAll(Subscription sub) async {
+    final keys = [for (final s in sub.servers) Pings.key(sub.id, s.name)];
+    state = Pings(delays: state.delays, running: {...state.running, ...keys});
+    final fragment = ref.read(settingsProvider).fragment;
+    Map<String, int?> result;
+    try {
+      final delays = await LibXray.ping([for (final s in sub.servers) pingConfig(s, fragment: fragment)]);
+      result = {for (final (i, s) in sub.servers.indexed) s.name: i < delays.length ? delays[i] : null};
+    } on Object {
+      result = {for (final s in sub.servers) s.name: null};
+    }
+    state = Pings(
+      delays: {...state.delays, for (final e in result.entries) Pings.key(sub.id, e.key): e.value},
+      running: {...state.running}..removeAll(keys),
+    );
+    return result;
+  }
+}
+
+// --- connecting ---
+
+class ConnectionUi {
+  const ConnectionUi({this.picking = false, this.error});
+
+  /// Pinging to pick the fastest server for "Авто".
+  final bool picking;
+  final String? error;
+}
+
+final connectionProvider = NotifierProvider<ConnectionController, ConnectionUi>(ConnectionController.new);
+
+class ConnectionController extends Notifier<ConnectionUi> {
+  @override
+  ConnectionUi build() => const ConnectionUi();
+
+  bool get _up => ref.read(vpnStateProvider) != VpnState.disconnected;
+
+  Future<void> toggle() async => _up ? disconnect() : connect();
+
+  Future<void> disconnect() async {
+    state = const ConnectionUi();
+    await Native.stop();
+  }
+
+  Future<void> reconnectIfConnected() async {
+    if (ref.read(vpnStateProvider) == VpnState.connected) await connect();
+  }
+
+  /// The server to use: the picked one, or under "Авто" the fastest by a fresh ping.
+  Future<Server?> _pick(Subscription sub) async {
+    final picked = ref.read(settingsProvider).selectedServers[sub.id];
+    final server = sub.servers.where((s) => s.name == picked).firstOrNull;
+    if (server != null) return server;
+    if (sub.servers.length == 1) return sub.servers.first;
+    state = const ConnectionUi(picking: true);
+    final delays = await ref.read(pingsProvider.notifier).pingAll(sub);
+    final best = sub.servers.where((s) => delays[s.name] != null).toList()
+      ..sort((a, b) => delays[a.name]!.compareTo(delays[b.name]!));
+    return best.firstOrNull ?? sub.servers.firstOrNull;
+  }
+
+  Future<void> connect() async {
+    final sub = ref.read(activeSubscriptionProvider);
+    if (sub == null || sub.servers.isEmpty) {
+      state = const ConnectionUi(error: 'Нет серверов');
+      return;
+    }
+    try {
+      if (!await Native.prepareVpn()) {
+        state = const ConnectionUi(error: 'Нужно разрешение на VPN');
+        return;
+      }
+      await Native.requestNotifications();
+      final server = await _pick(sub);
+      if (server == null) return;
+      state = const ConnectionUi();
+      final boot = ref.read(bootProvider);
+      final settings = ref.read(settingsProvider);
+      final config = buildXrayConfig(
+        server: server,
+        settings: settings,
+        logPath: boot.logPath,
+        ruCidrs: boot.ruCidrs,
+      );
+      await Native.start(
+        xrayConfig: jsonEncode(config),
+        vpn: vpnOptions(settings, serverName: server.name),
+      );
+    } on Object catch (e) {
+      state = ConnectionUi(error: e.toString());
+    }
+  }
+
+  /// A server tapped in the list: remembered, and switched to at once if the tunnel is up.
+  Future<void> choose(Subscription sub, String? serverName) async {
+    await ref.read(settingsProvider.notifier).selectServer(sub.id, serverName);
+    await reconnectIfConnected();
+  }
+}
+
+/// The server the tunnel runs on, for the home screen; while disconnected, the one it would use.
+final currentServerProvider = Provider<({String? name, bool auto})>((ref) {
+  final sub = ref.watch(activeSubscriptionProvider);
+  final status = ref.watch(vpnStatusProvider).value;
+  final picked = sub == null ? null : ref.watch(settingsProvider.select((s) => s.selectedServers[sub.id]));
+  if (status != null && status.state != VpnState.disconnected && status.server != null) {
+    return (name: status.server, auto: picked == null);
+  }
+  return (name: picked, auto: picked == null);
+});
+

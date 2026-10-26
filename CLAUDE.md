@@ -1,10 +1,12 @@
 # Orbit — notes for Claude
 
-Orbit is a personal Android reskin of Hiddify. The Orbit UI lives in `lib/orbit/`; everything else
-is Hiddify's code, changed as little as possible so upstream fixes can be merged.
+Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in Kotlin
+(`android/app/src/main/kotlin/app/orbit/client/`), the core is libXray built in CI.
 
-- Orbit strings are Russian and written directly in the widgets (no slang keys).
-- Generated files (`*.g.dart`, `*.freezed.dart`, translations) are git-ignored:
-  `dart run slang && dart run build_runner build -d` after a fresh clone.
-- `flutter test test/orbit --update-goldens` renders every screen to `test/orbit/goldens/` with fake
-  providers — use it to check UI changes against the design.
+- UI strings are Russian, written directly in the widgets.
+- The VPN service runs in the `:vpn` process; the app talks to it through files in `filesDir`
+  (`active.json`, `vpn.json`, `vpn_state.json`) and the `app.orbit.client.STATUS` broadcast.
+- libXray: one process may run only one Xray instance, and pingBatch refuses while it runs one.
+- There is no Android SDK in the cloud container; Kotlin is only compiled in CI. CI failures are
+  readable through the check-run annotations API (the build log itself is not downloadable here).
+- `flutter test --update-goldens test/preview_test.dart` renders the screens for a visual check.

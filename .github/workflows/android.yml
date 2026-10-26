@@ -11,42 +11,31 @@ permissions:
   contents: write
 
 jobs:
-  # Orbit's build of the Hiddify core: upstream plus a working xray outbound (core/README.md).
-  # It takes a while, so it is cached until something in core/ changes.
+  # Xray-core for Android: XTLS's libXray at core/LIBXRAY_COMMIT, built with gomobile.
+  # Cached until that file changes.
   core:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
 
-      - name: Cached core
+      - name: Cached libXray
         id: cache
         uses: actions/cache/restore@v5
         with:
           path: core-out
-          key: hiddify-core-android-${{ hashFiles('core/**') }}
+          key: libxray-android-${{ hashFiles('core/**') }}
 
-      - name: Check out hiddify-core
+      - name: Check out libXray
         if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          # ray2sing is an ssh submodule; the runner has no key for it
-          git config --global url."https://github.com/".insteadOf "git@github.com:"
-          git clone https://github.com/hiddify/hiddify-core hiddify-core-src
-          cd hiddify-core-src
-          git checkout "$(cat ../core/HIDDIFY_CORE_COMMIT)"
-          git submodule update --init --recursive
-
-      - name: Apply Orbit's xray outbound
-        if: steps.cache.outputs.cache-hit != 'true'
-        run: |
-          dir=hiddify-core-src/hiddify-sing-box/protocol/hiddify/xray
-          rm -f "$dir/h_outbound_test.go"
-          cp core/xray/*.go "$dir/"
+          git clone https://github.com/XTLS/libXray libxray-src
+          git -C libxray-src checkout "$(cat core/LIBXRAY_COMMIT)"
 
       - uses: actions/setup-go@v5
         if: steps.cache.outputs.cache-hit != 'true'
         with:
-          go-version-file: hiddify-core-src/go.mod
-          cache-dependency-path: hiddify-core-src/go.sum
+          go-version-file: libxray-src/go.mod
+          cache-dependency-path: libxray-src/go.sum
 
       - uses: actions/setup-java@v5
         if: steps.cache.outputs.cache-hit != 'true'
@@ -60,47 +49,36 @@ jobs:
         with:
           ndk-version: r28
 
-      - name: Test the xray outbound
+      - name: Build libXray.aar
         if: steps.cache.outputs.cache-hit != 'true'
-        working-directory: hiddify-core-src/hiddify-sing-box
+        working-directory: libxray-src
         env:
-          GOFLAGS: -mod=mod
-        run: |
-          set -o pipefail
-          go test ./protocol/hiddify/xray/ -run TestXray -v -timeout 120s 2>&1 | tee "$GITHUB_WORKSPACE/core.log"
-
-      - name: Build hiddify-core.aar
-        if: steps.cache.outputs.cache-hit != 'true'
-        working-directory: hiddify-core-src
-        env:
-          GOFLAGS: -mod=mod
           ANDROID_NDK_HOME: ${{ steps.ndk.outputs.ndk-path }}
         run: |
           set -o pipefail
-          make android 2>&1 | tee -a "$GITHUB_WORKSPACE/core.log"
+          python3 build/main.py android 2>&1 | tee "$GITHUB_WORKSPACE/core.log"
           mkdir -p ../core-out
-          cp bin/hiddify-core.aar ../core-out/
+          cp libXray.aar ../core-out/
           ls -la ../core-out
 
       - name: Report core errors
         if: failure()
         run: |
           touch core.log
-          grep -E -i -B3 -A6 "error|fail|panic|cannot|undefined" core.log | tail -n 120 > errors.txt || true
-          [ -s errors.txt ] || tail -n 120 core.log > errors.txt
+          tail -n 120 core.log > errors.txt
           msg=$(sed -e 's/%/%25/g' errors.txt | awk 'BEGIN{ORS="%0A"} {print}')
-          echo "::error title=hiddify-core::${msg}"
+          echo "::error title=libXray::${msg}"
 
       - uses: actions/cache/save@v5
         if: steps.cache.outputs.cache-hit != 'true'
         with:
           path: core-out
-          key: hiddify-core-android-${{ hashFiles('core/**') }}
+          key: libxray-android-${{ hashFiles('core/**') }}
 
       - uses: actions/upload-artifact@v5
         with:
-          name: hiddify-core-android
-          path: core-out/hiddify-core.aar
+          name: libxray-android
+          path: core-out/libXray.aar
           retention-days: 1
 
   apk:
@@ -108,10 +86,6 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
-
-      - name: Read Flutter version
-        id: flutter
-        run: echo "version=$(grep -oP '^\s*flutter:\s*\^\K[0-9.]+' pubspec.yaml)" >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v5
         with:
@@ -124,7 +98,7 @@ jobs:
 
       - uses: subosito/flutter-action@v2
         with:
-          flutter-version: ${{ steps.flutter.outputs.version }}
+          flutter-version: 3.38.5
           channel: stable
           cache: true
 
@@ -133,31 +107,30 @@ jobs:
           path: |
             ~/.gradle/caches
             ~/.gradle/wrapper
-          key: gradle-${{ runner.os }}-${{ hashFiles('**/*.gradle*', '**/gradle-wrapper.properties') }}
+          key: gradle-${{ runner.os }}-${{ hashFiles('android/**/*.gradle*', 'android/gradle/wrapper/gradle-wrapper.properties') }}
           restore-keys: gradle-${{ runner.os }}-
 
-      - name: Orbit's core
-        uses: actions/download-artifact@v5
+      - uses: actions/download-artifact@v5
         with:
-          name: hiddify-core-android
+          name: libxray-android
           path: android/app/libs
 
-      - name: Code generation
+      - name: Analyze and test
         run: |
           flutter pub get
-          dart run slang
-          dart run build_runner build --delete-conflicting-outputs
+          flutter analyze
+          flutter test test/parser_test.dart test/emit_configs_test.dart
 
-      # Without these secrets the APK is signed with a throwaway debug key, and each build then
-      # needs the previous one uninstalled first. See README.
+      # Without these secrets every build is signed with a throwaway debug key, and installing one
+      # over another fails. See README.
       - name: Signing key
         env:
           KEY: ${{ secrets.ANDROID_SIGNING_KEY }}
         if: env.KEY != ''
         run: |
-          echo "${{ secrets.ANDROID_SIGNING_KEY }}" | base64 --decode > android/key.jks
+          echo "${{ secrets.ANDROID_SIGNING_KEY }}" | base64 --decode > android/orbit.jks
           {
-            echo "storeFile=$(pwd)/android/key.jks"
+            echo "storeFile=$(pwd)/android/orbit.jks"
             echo "storePassword=${{ secrets.ANDROID_SIGNING_STORE_PASSWORD }}"
             echo "keyPassword=${{ secrets.ANDROID_SIGNING_KEY_PASSWORD }}"
             echo "keyAlias=${{ secrets.ANDROID_SIGNING_KEY_ALIAS }}"
@@ -166,27 +139,26 @@ jobs:
       - name: Build
         run: |
           set -o pipefail
-          flutter build apk --release --split-per-abi --target lib/main_prod.dart 2>&1 | tee build.log
+          {
+            flutter build apk --release --split-per-abi --build-number=${{ github.run_number }}
+            mkdir -p out
+            cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk out/Orbit-arm64.apk
+            cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk out/Orbit-arm7.apk
+            # one APK for every phone, for the ones that reject the arm64 build
+            flutter build apk --release --build-number=${{ github.run_number }}
+            cp build/app/outputs/flutter-apk/app-release.apk out/Orbit-universal.apk
+          } 2>&1 | tee build.log
+          ls -la out
 
       # Annotations are readable through the API even where the raw log is not.
       - name: Report build errors
         if: failure()
         run: |
+          touch build.log
           grep -E -i -B2 -A8 "error|what went wrong|exception|failed" build.log | tail -n 120 > errors.txt || true
           [ -s errors.txt ] || tail -n 120 build.log > errors.txt
           msg=$(sed -e 's/%/%25/g' errors.txt | awk 'BEGIN{ORS="%0A"} {print}')
           echo "::error title=flutter build apk::${msg}"
-
-      - name: Collect
-        run: |
-          mkdir out
-          cp build/app/outputs/flutter-apk/app-arm64-v8a-release.apk out/Orbit-arm64.apk
-          cp build/app/outputs/flutter-apk/app-armeabi-v7a-release.apk out/Orbit-arm7.apk
-          cp build/app/outputs/flutter-apk/app-x86_64-release.apk out/Orbit-x86_64.apk || true
-          # build.gradle also makes a universal APK next to the per-ABI ones: for phones that reject arm64
-          universal=$(find build/app/outputs -name '*universal*release*.apk' | head -n1)
-          if [ -n "$universal" ]; then cp "$universal" out/Orbit-universal.apk; fi
-          ls -la out
 
       - uses: actions/upload-artifact@v5
         with:
