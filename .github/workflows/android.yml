@@ -98,8 +98,14 @@ jobs:
           name: Orbit-android
           path: out/*.apk
 
+      # Every build on main becomes a release, so the APK is one tap away on the phone.
       - name: Release
-        if: startsWith(github.ref, 'refs/tags/v')
+        if: github.event_name != 'pull_request'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('build-{0}', github.run_number) }}
+          name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('Orbit build {0}', github.run_number) }}
+          target_commitish: ${{ github.sha }}
+          make_latest: true
+          body: Для телефона нужен Orbit-arm64.apk.
           files: out/*.apk
