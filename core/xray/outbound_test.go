@@ -159,6 +159,86 @@ func TestXrayVlessXHTTP(t *testing.T) {
 	t.Logf("body=%s dialed=%d", body[:n], dialed)
 }
 
+func TestXrayRemnawaveStyleConfig(t *testing.T) {
+	ln, _ := net.Listen("tcp", "127.0.0.1:0")
+	go http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "via-xhttp") }))
+	free, _ := net.Listen("tcp", "127.0.0.1:0")
+	serverPort := free.Addr().(*net.TCPAddr).Port
+	free.Close()
+
+	uuid := "11111111-2222-3333-4444-555555555555"
+	// a real xray server, built from JSON the same way
+	serverJSON := map[string]any{
+		"inbounds": []any{map[string]any{
+			"listen": "127.0.0.1", "port": serverPort, "protocol": "vless",
+			"settings":       map[string]any{"clients": []any{map[string]any{"id": uuid}}, "decryption": "none"},
+			"streamSettings": map[string]any{"network": "xhttp", "xhttpSettings": map[string]any{"path": "/xh", "mode": "packet-up"}},
+		}},
+		"outbounds": []any{map[string]any{"protocol": "freedom", "settings": map[string]any{"finalRules": []any{map[string]any{"action": "allow"}}}}},
+	}
+	b, _ := jsonMarshal(serverJSON)
+	sc, err := decodeAndBuild(b)
+	if err != nil {
+		t.Fatal(err)
+	}
+	server, err := xcore.New(sc)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := server.Start(); err != nil {
+		t.Fatal(err)
+	}
+	defer server.Close()
+
+	dialed := 0
+	var nd N.Dialer = plainDialer{&dialed}
+	currentDialer.Store(&nd)
+	internet.UseAlternativeSystemDialer(systemDialer{})
+
+	clientCfg, err := buildConfig(map[string]any{
+		"remarks": "cdn",
+		// what panels add around the server: none of it may stop the config or steal the traffic
+		"dns":     map[string]any{"servers": []any{map[string]any{"address": "1.1.1.1", "domains": []any{"geosite:category-ru"}}}},
+		"routing": map[string]any{"rules": []any{map[string]any{"outboundTag": "direct", "ip": []any{"geoip:private"}}}},
+		"outbounds": []any{map[string]any{"tag": "direct", "protocol": "freedom"}, map[string]any{
+			"tag": "proxy", "protocol": "vless",
+			"settings": map[string]any{"vnext": []any{map[string]any{
+				"address": "127.0.0.1", "port": serverPort,
+				"users": []any{map[string]any{"id": uuid, "encryption": "none"}},
+			}}},
+			"streamSettings": map[string]any{"network": "xhttp", "xhttpSettings": map[string]any{
+				"path": "/xh", "mode": "packet-up",
+				"extra": map[string]any{"xPaddingBytes": "100-1000", "xmux": map[string]any{"maxConcurrency": "4-8"}},
+			}},
+		}},
+	}, false)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client, err := xcore.New(clientCfg)
+	if err != nil {
+		t.Fatal(err)
+	}
+	client.Start()
+	defer client.Close()
+
+	conn, err := xcore.Dial(context.Background(), client, xnet.TCPDestination(xnet.LocalHostIP, xnet.Port(ln.Addr().(*net.TCPAddr).Port)))
+	if err != nil {
+		t.Fatal(err)
+	}
+	fmt.Fprintf(conn, "GET / HTTP/1.1\r\nHost: x\r\nConnection: close\r\n\r\n")
+	resp, err := http.ReadResponse(bufio.NewReader(conn), nil)
+	if err != nil {
+		t.Fatal(err)
+	}
+	body := make([]byte, 64)
+	n, _ := resp.Body.Read(body)
+	if string(body[:n]) != "via-xhttp" {
+		t.Fatalf("body %q", body[:n])
+	}
+	t.Logf("body=%s dialed=%d", body[:n], dialed)
+}
+
 func TestXrayVlessTCP(t *testing.T) {
 	ln, _ := net.Listen("tcp", "127.0.0.1:0")
 	go http.Serve(ln, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) { fmt.Fprint(w, "via-xhttp") }))

@@ -17,7 +17,8 @@ class AppInfoEntity with _$AppInfoEntity {
     required Environment environment,
   }) = _AppInfoEntity;
 
-  String get userAgent => "HiddifyNext/$version ($operatingSystem) like ClashMeta v2ray sing-box";
+  // Orbit: its own name first, so a panel can send it Xray JSON without changing what Hiddify gets
+  String get userAgent => "Orbit/$version ($operatingSystem) like HiddifyNext ClashMeta v2ray sing-box";
 
   String get presentVersion => environment == Environment.prod ? version : "$version ${environment.name}";
 

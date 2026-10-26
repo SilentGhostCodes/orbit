@@ -95,6 +95,16 @@ func buildConfig(raw map[string]any, debug bool) (*xcore.Config, error) {
 	delete(cfg, "api")
 	delete(cfg, "stats")
 	delete(cfg, "metrics")
+	// sing-box already decides what goes direct (Orbit's "bypass RU" and the like). The panel's own
+	// routing and DNS mostly name geoip:/geosite: lists, and without geoip.dat/geosite.dat on the phone
+	// xray refuses the whole config. With no routing, xray sends everything to its first outbound,
+	// so the server goes first; the rest stay for dialerProxy chains such as fragment.
+	for _, key := range []string{"routing", "dns", "fakedns", "observatory", "burstObservatory", "reverse"} {
+		delete(cfg, key)
+	}
+	if outbounds, ok := cfg["outbounds"].([]any); ok {
+		cfg["outbounds"] = proxyFirst(outbounds)
+	}
 	level := "warning"
 	if debug {
 		level = "debug"
@@ -110,6 +120,40 @@ func buildConfig(raw map[string]any, debug bool) (*xcore.Config, error) {
 		return nil, err
 	}
 	return jsonConfig.Build()
+}
+
+var proxyProtocols = map[string]bool{
+	"vless": true, "vmess": true, "trojan": true, "shadowsocks": true,
+	"hysteria": true, "wireguard": true, "socks": true, "http": true,
+}
+
+// proxyFirst moves the outbound that reaches the server to the front: the one tagged "proxy",
+// else the first one with a proxy protocol.
+func proxyFirst(outbounds []any) []any {
+	pick := -1
+	for i, o := range outbounds {
+		if m, ok := o.(map[string]any); ok && m["tag"] == "proxy" {
+			pick = i
+			break
+		}
+	}
+	if pick < 0 {
+		for i, o := range outbounds {
+			if m, ok := o.(map[string]any); ok {
+				if p, _ := m["protocol"].(string); proxyProtocols[p] {
+					pick = i
+					break
+				}
+			}
+		}
+	}
+	if pick <= 0 {
+		return outbounds
+	}
+	reordered := make([]any, 0, len(outbounds))
+	reordered = append(reordered, outbounds[pick])
+	reordered = append(reordered, outbounds[:pick]...)
+	return append(reordered, outbounds[pick+1:]...)
 }
 
 func (h *Outbound) Start(stage adapter.StartStage) error {
