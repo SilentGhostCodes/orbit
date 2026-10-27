@@ -13,13 +13,18 @@ import 'package:orbit/data/subscription_repo.dart';
 class Boot {
   const Boot({
     required this.version,
+    this.build = '',
     required this.settings,
     required this.subscriptions,
     required this.ruCidrs,
     required this.logPath,
   });
 
+  /// From pubspec.yaml's `version`, raised with every release.
   final String version;
+
+  /// The CI build number (the run number), which also makes Android's versionCode.
+  final String build;
   final OrbitSettings settings;
   final List<Subscription> subscriptions;
   final List<String> ruCidrs;

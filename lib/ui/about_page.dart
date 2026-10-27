@@ -12,7 +12,9 @@ class AboutPage extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final version = ref.watch(bootProvider).version;
+    final boot = ref.watch(bootProvider);
+    final version = boot.version;
+    final build = boot.build.isEmpty ? null : boot.build;
     final xray = ref.watch(_xrayVersionProvider).value;
     return Scaffold(
       appBar: AppBar(titleSpacing: 0, title: const Text('О приложении', style: OrbitText.sheetTitle)),
@@ -23,9 +25,12 @@ class AboutPage extends ConsumerWidget {
           const SizedBox(height: 18),
           const Center(child: Text('Orbit', style: TextStyle(fontSize: 24, fontWeight: FontWeight.w700))),
           const SizedBox(height: 6),
-          Center(child: Text('Версия $version', style: OrbitText.caption)),
+          Center(
+            child: Text('Версия $version${build == null ? '' : ' · сборка $build'}', style: OrbitText.caption),
+          ),
           const SizedBox(height: 28),
           OrbitTile(title: 'Версия приложения', value: version),
+          if (build != null) OrbitTile(title: 'Сборка', value: build),
           OrbitTile(title: 'Ядро', value: xray == null ? 'Xray-core' : 'Xray-core $xray'),
           const OrbitTile(title: 'Протоколы', value: 'VLESS, VMess, Trojan, Shadowsocks, Hysteria2'),
           const OrbitTile(title: 'Подписки', value: 'Xray JSON, ссылки, base64', divider: false),

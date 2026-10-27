@@ -35,6 +35,7 @@ Future<void> main() async {
   ]);
   final boot = Boot(
     version: (results[0] as PackageInfo).version,
+    build: (results[0] as PackageInfo).buildNumber,
     settings: results[1] as OrbitSettings,
     subscriptions: results[2] as List<Subscription>,
     logPath: '${(results[3] as Directory).path}/xray.log',
