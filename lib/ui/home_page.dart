@@ -9,7 +9,7 @@ import 'package:orbit/ui/shell.dart';
 import 'package:orbit/ui/subscription_sheets.dart';
 import 'package:orbit/util/format.dart';
 import 'package:orbit/util/server_meta.dart';
-import 'package:orbit/widgets/flower_button.dart';
+import 'package:orbit/widgets/orbit_button.dart';
 import 'package:orbit/widgets/orbit_widgets.dart';
 
 final _tickerProvider = StreamProvider.autoDispose<DateTime>(
@@ -182,10 +182,10 @@ class _ConnectArea extends ConsumerWidget {
     final ui = ref.watch(connectionProvider);
     final error = ui.error ?? status.error;
     final busy = ui.picking || status.state == VpnState.connecting || status.state == VpnState.disconnecting;
-    final flower = switch (status.state) {
-      VpnState.connected => FlowerState.on,
-      _ when busy => FlowerState.busy,
-      _ => FlowerState.off,
+    final buttonState = switch (status.state) {
+      VpnState.connected => OrbitButtonState.on,
+      _ when busy => OrbitButtonState.busy,
+      _ => OrbitButtonState.off,
     };
 
     final Widget label = switch (status.state) {
@@ -209,13 +209,13 @@ class _ConnectArea extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        FlowerButton(
-          state: flower,
+        OrbitButton(
+          state: buttonState,
           onTap: ui.picking ? null : () => ref.read(connectionProvider.notifier).toggle(),
         ),
-        // the glow around the flower takes room of its own; pull the text up into it
+        // the button's box leaves room for the orbit and its glow; pull the text up, clear of the ring
         Transform.translate(
-          offset: const Offset(0, -44),
+          offset: const Offset(0, -24),
           child: SizedBox(
             height: 64,
             child: AnimatedSwitcher(duration: const Duration(milliseconds: 250), child: label),

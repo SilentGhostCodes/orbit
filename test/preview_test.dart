@@ -136,6 +136,10 @@ void main() {
     ),
   );
   testWidgets('servers', (t) => _shoot(t, 'servers', const ServersPage()));
+  testWidgets(
+    'home connecting',
+    (t) => _shoot(t, 'home_connecting', const HomePage(), status: const VpnStatus(VpnState.connecting)),
+  );
   testWidgets('home unlimited', (t) => _shoot(t, 'home_unlimited', const HomePage(), unlimited: true));
   testWidgets('settings', (t) => _shoot(t, 'settings', const SettingsPage()));
 }
