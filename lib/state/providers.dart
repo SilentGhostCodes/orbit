@@ -130,6 +130,10 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
   Future<void> refresh(String id) async {
     final sub = state.where((s) => s.id == id).firstOrNull;
     if (sub?.url == null) return;
+    String serverJson(Subscription? s, String? name) =>
+        jsonEncode(s?.servers.where((x) => x.name == name).firstOrNull?.toJson());
+    final running = ref.read(vpnStatusProvider).value?.server;
+    final before = serverJson(sub, running);
     final updating = ref.read(updatingProvider.notifier);
     updating.set(id, true);
     try {
@@ -153,8 +157,9 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
     } finally {
       updating.set(id, false);
     }
-    // the running tunnel uses the old copy of the server
-    if (ref.read(settingsProvider).activeSubscription == id) {
+    // the running tunnel uses the old copy of the server; restart it only if that server changed
+    final after = serverJson(state.where((s) => s.id == id).firstOrNull, running);
+    if (ref.read(settingsProvider).activeSubscription == id && before != after) {
       await ref.read(connectionProvider.notifier).reconnectIfConnected();
     }
   }
@@ -174,7 +179,9 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
   Future<void> remove(String id) async {
     final wasActive = ref.read(settingsProvider).activeSubscription == id;
     await _store([...state.where((s) => s.id != id)]);
-    if (wasActive) await ref.read(connectionProvider.notifier).disconnect();
+    if (wasActive && ref.read(vpnStateProvider) != VpnState.disconnected) {
+      await ref.read(connectionProvider.notifier).disconnect();
+    }
   }
 
   Future<void> setAutoUpdate(String id, bool on) async =>
@@ -201,11 +208,14 @@ final vpnStateProvider = Provider<VpnState>(
 // --- pings ---
 
 class Pings {
-  const Pings({this.delays = const {}, this.running = const {}});
+  const Pings({this.delays = const {}, this.running = const {}, this.error});
 
   /// Milliseconds by [key]; null for a server that did not answer.
   final Map<String, int?> delays;
   final Set<String> running;
+
+  /// Why the last ping failed as a whole (libXray could not run it), for the server list.
+  final String? error;
 
   static String key(String subscriptionId, String server) => '$subscriptionId|$server';
 
@@ -227,17 +237,21 @@ class PingsNotifier extends Notifier<Pings> {
   Future<Map<String, int?>> pingAll(Subscription sub) async {
     final keys = [for (final s in sub.servers) Pings.key(sub.id, s.name)];
     state = Pings(delays: state.delays, running: {...state.running, ...keys});
-    final fragment = ref.read(settingsProvider).fragment;
+    final settings = ref.read(settingsProvider);
+    LibXray.dns = settings.dnsChoice.ip;
     Map<String, int?> result;
+    String? error;
     try {
-      final delays = await LibXray.ping([for (final s in sub.servers) pingConfig(s, fragment: fragment)]);
+      final delays = await LibXray.ping([for (final s in sub.servers) pingConfig(s, fragment: settings.fragment)]);
       result = {for (final (i, s) in sub.servers.indexed) s.name: i < delays.length ? delays[i] : null};
-    } on Object {
+    } on Object catch (e) {
       result = {for (final s in sub.servers) s.name: null};
+      error = e.toString();
     }
     state = Pings(
       delays: {...state.delays, for (final e in result.entries) Pings.key(sub.id, e.key): e.value},
       running: {...state.running}..removeAll(keys),
+      error: error,
     );
     return result;
   }

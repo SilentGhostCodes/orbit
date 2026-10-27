@@ -13,8 +13,14 @@ class LibXrayException implements Exception {
 
 /// libXray's single entry point: `{"apiVersion": 3, "method": …, "payload": …}` in, `{success, data, error}` out.
 abstract class LibXray {
+  /// The DNS server (an IP) libXray resolves server names with in the app's process; see [Native.libxray].
+  static String dns = '1.1.1.1';
+
   static Future<Object?> _invoke(String method, [Map<String, dynamic> payload = const {}]) async {
-    final response = await Native.libxray(jsonEncode({'apiVersion': 3, 'method': method, 'payload': payload}));
+    final response = await Native.libxray(
+      jsonEncode({'apiVersion': 3, 'method': method, 'payload': payload}),
+      dns: dns,
+    );
     final decoded = jsonDecode(response) as Map<String, dynamic>;
     if (decoded['success'] != true) throw LibXrayException((decoded['error'] ?? 'libXray: $method failed').toString());
     return decoded['data'];

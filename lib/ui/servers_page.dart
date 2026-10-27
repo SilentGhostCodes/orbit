@@ -82,6 +82,16 @@ class _Servers extends ConsumerWidget {
             ],
           ),
         ),
+        if (pings.error != null && !pinging)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(20, 4, 20, 0),
+            child: Text(
+              'Пинг не удался: ${pings.error}',
+              style: OrbitText.caption.copyWith(color: OrbitColors.danger),
+              maxLines: 3,
+              overflow: TextOverflow.ellipsis,
+            ),
+          ),
         Expanded(
           child: sub.servers.isEmpty
               ? const Center(child: Text('В подписке нет серверов', style: OrbitText.caption))

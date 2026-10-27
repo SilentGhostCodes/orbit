@@ -16,6 +16,7 @@ import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.EventChannel
 import io.flutter.plugin.common.MethodChannel
+import libXray.DialerController
 import libXray.LibXray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
@@ -26,6 +27,7 @@ class MainActivity : FlutterActivity() {
     private var pendingVpnPermission: MethodChannel.Result? = null
     private var statusSink: EventChannel.EventSink? = null
     private var receiverRegistered = false
+    private var dnsServer: String? = null
 
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
@@ -66,10 +68,20 @@ class MainActivity : FlutterActivity() {
 
                 "status" -> result.success(toMap(VpnStore.status(this)))
 
+                "setAutoConnect" -> {
+                    val options = VpnStore.options(this).put("autoConnect", call.argument<Boolean>("on") == true)
+                    VpnStore.optionsFile(this).writeText(options.toString())
+                    result.success(null)
+                }
+
                 "libxray" -> {
                     val request = call.argument<String>("request")!!
+                    val dns = call.argument<String>("dns") ?: "1.1.1.1"
                     io.execute {
-                        val response = runCatching { LibXray.invoke(request) }.getOrElse {
+                        val response = runCatching {
+                            useDns(dns)
+                            LibXray.invoke(request)
+                        }.getOrElse {
                             JSONObject().put("success", false).put("error", it.message ?: it.toString()).toString()
                         }
                         runOnUiThread { result.success(response) }
@@ -142,6 +154,23 @@ class MainActivity : FlutterActivity() {
         }
         @Suppress("DEPRECATION")
         super.onActivityResult(requestCode, resultCode, data)
+    }
+
+    /**
+     * Go on Android has no resolver of its own (no /etc/resolv.conf: it asks 127.0.0.1:53, where
+     * nothing answers), so without this every server given by name failed to ping. The app's process
+     * is always outside the tunnel, so its sockets need no protecting.
+     */
+    @Synchronized
+    private fun useDns(ip: String) {
+        val server = "$ip:53"
+        if (server == dnsServer) return
+        LibXray.setDNS(Unprotected, server)
+        dnsServer = server
+    }
+
+    private object Unprotected : DialerController {
+        override fun protectFd(fd: Long): Boolean = true
     }
 
     private fun installedApps(): List<Map<String, Any?>> {

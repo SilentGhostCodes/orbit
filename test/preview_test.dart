@@ -53,14 +53,30 @@ final _sub = Subscription(
   ],
 );
 
-Future<void> _shoot(WidgetTester tester, String name, Widget page, {VpnStatus? status, bool empty = false}) async {
+final _unlimited = Subscription(
+  id: 's1',
+  name: 'Ghost VPN',
+  url: 'https://sub.example.com/b',
+  updatedAt: DateTime(2026),
+  download: 37 << 30,
+  servers: _sub.servers,
+);
+
+Future<void> _shoot(
+  WidgetTester tester,
+  String name,
+  Widget page, {
+  VpnStatus? status,
+  bool empty = false,
+  bool unlimited = false,
+}) async {
   tester.view.physicalSize = const Size(1080, 2340);
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
   final boot = Boot(
     version: '1.0.0',
     settings: OrbitSettings(activeSubscription: 's1', selectedServers: const {'s1': '🇳🇱 Амстердам'}),
-    subscriptions: empty ? const [] : [_sub],
+    subscriptions: empty ? const [] : [if (unlimited) _unlimited else _sub],
     ruCidrs: const [],
     logPath: '/tmp/xray.log',
   );
@@ -120,5 +136,6 @@ void main() {
     ),
   );
   testWidgets('servers', (t) => _shoot(t, 'servers', const ServersPage()));
+  testWidgets('home unlimited', (t) => _shoot(t, 'home_unlimited', const HomePage(), unlimited: true));
   testWidgets('settings', (t) => _shoot(t, 'settings', const SettingsPage()));
 }

@@ -53,7 +53,7 @@ bool _isProxy(Map<String, dynamic> o) => _proxyProtocols.contains(o['protocol'])
 /// Xray JSON as Remnawave or Marzban send it: a list of full configs, one per server, or a single
 /// config. Null when [body] is not Xray JSON (share links, base64, anything else).
 List<Server>? parseXrayJson(String body) {
-  final trimmed = body.trim();
+  final trimmed = body.replaceFirst('\uFEFF', '').trim();
   if (!(trimmed.startsWith('[') || trimmed.startsWith('{'))) return null;
   final Object? json;
   try {

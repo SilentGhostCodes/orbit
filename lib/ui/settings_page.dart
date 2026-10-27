@@ -52,7 +52,10 @@ class SettingsPage extends ConsumerWidget {
               title: 'Автоподключение',
               subtitle: 'При запуске приложения и телефона',
               value: s.autoConnect,
-              onChanged: (v) => notifier.change((s) => s.copyWith(autoConnect: v), reconnect: true),
+              onChanged: (v) async {
+                await notifier.change((s) => s.copyWith(autoConnect: v));
+                await Native.setAutoConnect(v);
+              },
             ),
             OrbitSwitchTile(
               title: 'Kill Switch',

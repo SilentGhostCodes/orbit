@@ -5,6 +5,7 @@ import 'package:orbit/core/xray_config.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/settings.dart';
 import 'package:orbit/data/subscription_parser.dart';
+import 'package:orbit/util/format.dart';
 
 Map<String, dynamic> _vless(String tag, {String network = 'xhttp', String security = 'tls'}) => {
   'tag': tag,
@@ -84,6 +85,33 @@ void main() {
     test('names stay unique', () {
       final s = Server(name: 'X', outbounds: [_vless('proxy')]);
       expect(dedupeNames([s, s, s]).map((s) => s.name), ['X', 'X (2)', 'X (3)']);
+    });
+  });
+
+  test('Xray JSON after a byte order mark', () {
+    final servers = parseXrayJson('\uFEFF${jsonEncode([
+      {'remarks': 'A', 'outbounds': [_vless('proxy')]},
+    ])}');
+    expect(servers?.single.name, 'A');
+  });
+
+  group('traffic line', () {
+    Subscription sub({required int used, required int total}) =>
+        Subscription(id: 'x', name: 'x', servers: const [], updatedAt: DateTime(2026), download: used, total: total);
+    const gb = 1024 * 1024 * 1024;
+
+    test('unlimited: what was used, of infinity, and an empty bar', () {
+      final s = summarize(sub(used: 12 * gb, total: 0));
+      expect(s.traffic, '12 ГБ из ∞');
+      expect(s.ratio, 0);
+      expect(summarize(sub(used: 350 * 1024 * 1024, total: 0)).traffic, '350 МБ из ∞');
+    });
+
+    test('limited: used of total, and the bar filled that far', () {
+      final s = summarize(sub(used: 48 * gb, total: 100 * gb));
+      expect(s.traffic, '48 из 100 ГБ');
+      expect(s.ratio, closeTo(.48, .001));
+      expect(summarize(sub(used: 0, total: 100 * gb)).traffic, '0 МБ из 100 ГБ');
     });
   });
 

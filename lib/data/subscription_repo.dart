@@ -71,7 +71,8 @@ class SubscriptionRepo {
     if (response.statusCode != 200) {
       throw SubscriptionException('Панель ответила ${response.statusCode}');
     }
-    final body = utf8.decode(response.bodyBytes, allowMalformed: true);
+    // some panels put a byte order mark in front of the JSON
+    final body = utf8.decode(response.bodyBytes, allowMalformed: true).replaceFirst('\uFEFF', '');
     final servers = await parseBody(body);
     return (
       servers: servers,

@@ -143,7 +143,7 @@ class _SubscriptionHeader extends ConsumerWidget {
                 tween: ColorTween(end: connected ? OrbitColors.accent : const Color(0xFF8A8B90)),
                 duration: const Duration(milliseconds: 400),
                 builder: (context, color, _) => LinearProgressIndicator(
-                  value: summary.ratio ?? 1,
+                  value: summary.ratio,
                   minHeight: 2.5,
                   color: color,
                   backgroundColor: OrbitColors.surfaceHighest,

@@ -22,7 +22,7 @@ class VpnStatus {
       VpnState.values.asNameMap()[map['state']] ?? VpnState.disconnected,
       since: since == null || since == 0 ? null : DateTime.fromMillisecondsSinceEpoch(since),
       error: (map['error'] as String?)?.isEmpty ?? true ? null : map['error'] as String,
-      server: map['server'] as String?,
+      server: (map['server'] as String?)?.isEmpty ?? true ? null : map['server'] as String,
     );
   }
 }
@@ -52,15 +52,19 @@ abstract class Native {
 
   static Future<void> stop() => _channel.invokeMethod('stop');
 
+  /// Whether the tunnel comes up after a reboot; read by the boot receiver.
+  static Future<void> setAutoConnect(bool on) => _channel.invokeMethod('setAutoConnect', {'on': on});
+
   static Future<VpnStatus> status() async =>
       VpnStatus.fromMap(await _channel.invokeMethod<Map<dynamic, dynamic>>('status') ?? const {});
 
   static Stream<VpnStatus> get statusStream =>
       _status.receiveBroadcastStream().map((e) => VpnStatus.fromMap(e as Map<dynamic, dynamic>));
 
-  /// One libXray call (its JSON envelope in and out), run off the main thread.
-  static Future<String> libxray(String request) async =>
-      await _channel.invokeMethod<String>('libxray', {'request': request}) ?? '';
+  /// One libXray call (its JSON envelope in and out), run off the main thread. [dns] is the plain
+  /// DNS server Xray resolves server names with in this process: Go on Android has none of its own.
+  static Future<String> libxray(String request, {required String dns}) async =>
+      await _channel.invokeMethod<String>('libxray', {'request': request, 'dns': dns}) ?? '';
 
   static Future<List<InstalledApp>> installedApps() async {
     final list = await _channel.invokeListMethod<Map<dynamic, dynamic>>('installedApps') ?? const [];

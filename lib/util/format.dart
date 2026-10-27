@@ -20,6 +20,17 @@ String gigabytes(int bytes) {
   return gb.toStringAsFixed(1).replaceAll('.', ',');
 }
 
+/// "350 МБ", "1,2 ГБ", "48 ГБ".
+String formatSize(int bytes) {
+  const mb = 1024 * 1024;
+  if (bytes < 1024 * mb) {
+    final m = bytes / mb;
+    if (m == 0) return '0 МБ';
+    return '${m < 10 ? m.toStringAsFixed(1).replaceAll('.', ',') : m.round()} МБ';
+  }
+  return '${gigabytes(bytes)} ГБ';
+}
+
 String formatElapsed(Duration d) {
   String two(int n) => n.toString().padLeft(2, '0');
   return '${two(d.inHours)}:${two(d.inMinutes % 60)}:${two(d.inSeconds % 60)}';
@@ -32,9 +43,9 @@ String formatDate(DateTime d) {
 
 /// The subscription line: traffic, and days left that can be tinted when they run out.
 class SubscriptionSummary {
-  const SubscriptionSummary({required this.traffic, this.days, this.daysLow = false, this.ratio});
+  const SubscriptionSummary({required this.traffic, required this.ratio, this.days, this.daysLow = false});
 
-  /// "48 из 100 ГБ" or "Безлимит".
+  /// "48 из 100 ГБ", or "12 ГБ из ∞" when the traffic is unlimited.
   final String traffic;
 
   /// "29 дней", or null when the subscription reports no expiry.
@@ -43,15 +54,22 @@ class SubscriptionSummary {
   /// Few days left, or already expired.
   final bool daysLow;
 
-  /// The share of traffic used, 0..1, or null for unlimited.
-  final double? ratio;
+  /// The share of traffic used, 0..1; 0 for unlimited.
+  final double ratio;
 }
 
 SubscriptionSummary summarize(Subscription s) {
   final unlimited = s.total <= 0;
-  final traffic = unlimited
-      ? (s.used > 0 ? '${gigabytes(s.used)} ГБ · безлимит' : 'Безлимит')
-      : '${gigabytes(s.used)} из ${gigabytes(s.total)} ГБ';
+  const gb = 1024 * 1024 * 1024;
+  final String traffic;
+  if (unlimited) {
+    traffic = '${formatSize(s.used)} из ∞';
+  } else if (s.used >= gb) {
+    // both in GB: "48 из 100 ГБ", as in the design
+    traffic = '${gigabytes(s.used)} из ${formatSize(s.total)}';
+  } else {
+    traffic = '${formatSize(s.used)} из ${formatSize(s.total)}';
+  }
   String? days;
   var low = false;
   if (s.expire != null) {
@@ -69,6 +87,6 @@ SubscriptionSummary summarize(Subscription s) {
     traffic: traffic,
     days: days,
     daysLow: low,
-    ratio: unlimited ? null : (s.used / s.total).clamp(0, 1).toDouble(),
+    ratio: unlimited ? 0 : (s.used / s.total).clamp(0, 1).toDouble(),
   );
 }
