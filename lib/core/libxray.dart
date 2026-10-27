@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:orbit/core/native.dart';
+import 'package:orbit/data/settings.dart';
 
 class LibXrayException implements Exception {
   LibXrayException(this.message);
@@ -21,6 +22,10 @@ abstract class LibXray {
       jsonEncode({'apiVersion': 3, 'method': method, 'payload': payload}),
       dns: dns,
     );
+    return _data(response, method);
+  }
+
+  static Object? _data(String response, String method) {
     final decoded = jsonDecode(response) as Map<String, dynamic>;
     if (decoded['success'] != true) throw LibXrayException((decoded['error'] ?? 'libXray: $method failed').toString());
     return decoded['data'];
@@ -42,23 +47,29 @@ abstract class LibXray {
   static const pingBatchSize = 5;
 
   /// Round trip through each config's "proxy" outbound, in milliseconds; null where it failed.
-  /// At most [pingBatchSize] configs. libXray refuses while it runs a tunnel in the same process,
-  /// which is why the VPN has its own.
+  /// At most [pingBatchSize] configs. [method] is GET or HEAD; [mode] one of [PingMode]'s names.
+  /// libXray refuses while it runs a tunnel in the same process, which is why the VPN has its own.
   static Future<List<int?>> ping(
     List<String> xrayConfigs, {
-    int timeoutSeconds = 4,
-    String url = 'https://www.gstatic.com/generate_204',
+    int timeoutSeconds = 5,
+    String url = defaultPingUrl,
+    String method = 'GET',
+    String mode = 'default',
   }) async {
     if (xrayConfigs.isEmpty) return const [];
-    final data =
-        await _invoke('pingBatch', {
-              'configs': [
-                for (final c in xrayConfigs) {'xrayJson': c, 'outboundTag': 'proxy'},
-              ],
-              'timeout': timeoutSeconds,
-              'url': url,
-            })
-            as Map<String, dynamic>;
+    final response = await Native.orbitPing(
+      jsonEncode({
+        'configs': [
+          for (final c in xrayConfigs) {'xrayJson': c, 'outboundTag': 'proxy'},
+        ],
+        'timeout': timeoutSeconds,
+        'url': url,
+        'method': method,
+        'mode': mode,
+      }),
+      dns: dns,
+    );
+    final data = _data(response, 'orbitPing') as Map<String, dynamic>;
     return [
       for (final r in (data['results'] as List).cast<Map<String, dynamic>>())
         r['success'] == true ? (r['delay'] as num).toInt() : null,

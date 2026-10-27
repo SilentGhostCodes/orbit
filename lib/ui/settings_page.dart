@@ -8,6 +8,7 @@ import 'package:orbit/ui/about_page.dart';
 import 'package:orbit/ui/appearance_page.dart';
 import 'package:orbit/ui/apps_page.dart';
 import 'package:orbit/ui/logs_page.dart';
+import 'package:orbit/ui/ping_settings_page.dart';
 import 'package:orbit/widgets/orbit_widgets.dart';
 
 /// 07 · Settings.
@@ -83,8 +84,13 @@ class SettingsPage extends ConsumerWidget {
               title: 'Фрагментация TLS',
               subtitle: 'Помогает, если сервер режет DPI',
               value: s.fragment,
-              divider: false,
               onChanged: (v) => notifier.change((s) => s.copyWith(fragment: v), reconnect: true),
+            ),
+            OrbitTile(
+              title: 'Пинг',
+              value: s.pingType.label,
+              divider: false,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PingSettingsPage())),
             ),
             const SectionLabel('Приложение'),
             OrbitTile(

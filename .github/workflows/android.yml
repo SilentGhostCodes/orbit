@@ -11,7 +11,7 @@ permissions:
   contents: write
 
 jobs:
-  # Xray-core for Android: XTLS's libXray at core/LIBXRAY_COMMIT, built with gomobile.
+  # Xray-core for Android: XTLS's libXray at core/LIBXRAY_COMMIT plus core/libxray, built with gomobile.
   # Cached until that file changes.
   core:
     runs-on: ubuntu-latest
@@ -30,6 +30,9 @@ jobs:
         run: |
           git clone https://github.com/XTLS/libXray libxray-src
           git -C libxray-src checkout "$(cat core/LIBXRAY_COMMIT)"
+          # Orbit's additions: ping with a chosen method and mode
+          cp core/libxray/orbit.go libxray-src/
+          cp core/libxray/xray/*.go libxray-src/xray/
 
       - uses: actions/setup-go@v5
         if: steps.cache.outputs.cache-hit != 'true'

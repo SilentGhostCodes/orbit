@@ -22,6 +22,30 @@ class Server {
 
   String get displayName => displayNameOf(name);
 
+  /// Where the proxy outbound connects to, for TCP and ICMP pings; null if it does not say.
+  ({String host, int port})? get endpoint {
+    final settings = proxy['settings'];
+    if (settings is! Map) return null;
+    ({String host, int port})? from(Object? m) {
+      if (m is! Map) return null;
+      final host = m['address']?.toString();
+      final port = m['port'] is num ? (m['port'] as num).toInt() : int.tryParse('${m['port']}');
+      return host == null || host.isEmpty || port == null ? null : (host: host, port: port);
+    }
+
+    for (final list in [settings['vnext'], settings['servers']]) {
+      if (list is List && list.isNotEmpty) return from(list.first);
+    }
+    final peers = settings['peers'];
+    if (peers is List && peers.isNotEmpty && peers.first is Map) {
+      final endpoint = (peers.first as Map)['endpoint']?.toString() ?? '';
+      final colon = endpoint.lastIndexOf(':');
+      final port = colon < 0 ? null : int.tryParse(endpoint.substring(colon + 1));
+      if (port != null) return (host: endpoint.substring(0, colon).replaceAll(RegExp(r'^\[|\]$'), ''), port: port);
+    }
+    return from(settings);
+  }
+
   String? get country => guessCountry(name);
 
   /// Same server across subscription updates, as far as the list is concerned.

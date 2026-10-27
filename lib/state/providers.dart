@@ -2,6 +2,7 @@ import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:orbit/core/direct_ping.dart';
 import 'package:orbit/core/libxray.dart';
 import 'package:orbit/core/native.dart';
 import 'package:orbit/core/xray_config.dart';
@@ -237,33 +238,52 @@ class PingsNotifier extends Notifier<Pings> {
   @override
   Pings build() => const Pings();
 
-  /// Pings every server of [sub], [LibXray.pingBatchSize] at a time, filling the list in as each
-  /// batch answers. The app itself is outside the tunnel, so this is the real round trip to each
-  /// server, connected or not.
+  /// Pings every server of [sub] the way the Пинг settings say, filling the list in as answers
+  /// come. Through the proxy that is [LibXray.pingBatchSize] servers per libXray call; TCP and ICMP
+  /// go to all servers at once. The app itself is outside the tunnel, so this is the real round trip
+  /// to each server, connected or not.
   Future<Map<String, int?>> pingAll(Subscription sub) async {
     final keys = [for (final s in sub.servers) Pings.key(sub.id, s.name)];
     state = Pings(delays: state.delays, running: {...state.running, ...keys});
     final settings = ref.read(settingsProvider);
-    LibXray.dns = settings.dnsChoice.ip;
     final result = <String, int?>{};
     String? error;
+
+    void publish(Map<String, int?> answered) {
+      result.addAll(answered);
+      state = Pings(
+        delays: {...state.delays, for (final e in answered.entries) Pings.key(sub.id, e.key): e.value},
+        running: {...state.running}..removeAll([for (final name in answered.keys) Pings.key(sub.id, name)]),
+        error: error,
+      );
+    }
+
+    if (!settings.pingType.viaProxy) {
+      final direct = settings.pingType == PingType.tcp ? DirectPing.tcp : DirectPing.icmp;
+      await Future.wait([
+        for (final s in sub.servers)
+          direct(s, timeoutSeconds: settings.pingTimeout).then((delay) => publish({s.name: delay})),
+      ]);
+      return result;
+    }
+
+    LibXray.dns = settings.dnsChoice.ip;
     for (var i = 0; i < sub.servers.length; i += LibXray.pingBatchSize) {
       final batch = sub.servers.skip(i).take(LibXray.pingBatchSize).toList();
       List<int?> delays;
       try {
-        delays = await LibXray.ping([for (final s in batch) pingConfig(s, fragment: settings.fragment)]);
+        delays = await LibXray.ping(
+          [for (final s in batch) pingConfig(s, fragment: settings.fragment)],
+          timeoutSeconds: settings.pingTimeout,
+          url: settings.pingUrl,
+          method: settings.pingType == PingType.proxyHead ? 'HEAD' : 'GET',
+          mode: settings.pingMode.id,
+        );
       } on Object catch (e) {
         delays = const [];
         error = e.toString();
       }
-      final batchResult = {for (final (j, s) in batch.indexed) s.name: j < delays.length ? delays[j] : null};
-      result.addAll(batchResult);
-      final done = [for (final s in batch) Pings.key(sub.id, s.name)];
-      state = Pings(
-        delays: {...state.delays, for (final e in batchResult.entries) Pings.key(sub.id, e.key): e.value},
-        running: {...state.running}..removeAll(done),
-        error: error,
-      );
+      publish({for (final (j, s) in batch.indexed) s.name: j < delays.length ? delays[j] : null});
     }
     return result;
   }

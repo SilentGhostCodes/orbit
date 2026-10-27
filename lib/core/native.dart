@@ -66,6 +66,16 @@ abstract class Native {
   static Future<String> libxray(String request, {required String dns}) async =>
       await _channel.invokeMethod<String>('libxray', {'request': request, 'dns': dns}) ?? '';
 
+  /// Orbit's own ping in libXray (core/libxray): pingBatch with a request method and mode.
+  static Future<String> orbitPing(String request, {required String dns}) async =>
+      await _channel.invokeMethod<String>('orbitPing', {'request': request, 'dns': dns}) ?? '';
+
+  /// One ICMP echo to [host] through the system's ping, in milliseconds; null if none came back.
+  static Future<int?> icmpPing(String host, {required int timeoutSeconds}) async {
+    final delay = await _channel.invokeMethod<int>('icmpPing', {'host': host, 'timeout': timeoutSeconds});
+    return delay == null || delay < 0 ? null : delay;
+  }
+
   static Future<List<InstalledApp>> installedApps() async {
     final list = await _channel.invokeListMethod<Map<dynamic, dynamic>>('installedApps') ?? const [];
     return [

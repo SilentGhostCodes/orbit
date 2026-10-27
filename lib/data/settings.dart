@@ -35,6 +35,50 @@ enum PowerButtonStyle {
   };
 }
 
+/// How servers are pinged, under Пинг.
+enum PingType {
+  /// An HTTP GET of the test URL through the server.
+  proxyGet,
+
+  /// The same with HEAD: no body.
+  proxyHead,
+
+  /// Time to open a TCP connection to the server's port.
+  tcp,
+
+  /// An ICMP echo to the server's address.
+  icmp;
+
+  bool get viaProxy => this == proxyGet || this == proxyHead;
+
+  String get label => switch (this) {
+    proxyGet => 'via Proxy GET',
+    proxyHead => 'via Proxy HEAD',
+    tcp => 'TCP',
+    icmp => 'ICMP',
+  };
+}
+
+/// How many requests a ping through the proxy makes and over what.
+enum PingMode {
+  /// One request.
+  normal('default', 'Default'),
+
+  /// Two requests on fresh connections, the better counts.
+  double('double', 'Double'),
+
+  /// Two requests over one kept-alive connection, the better counts.
+  keepAlive('keepalive', 'KeepAlive');
+
+  const PingMode(this.id, this.label);
+
+  /// The name libXray's OrbitPing takes.
+  final String id;
+  final String label;
+}
+
+const defaultPingUrl = 'https://www.gstatic.com/generate_204';
+
 /// A DNS server: DNS over HTTPS through the tunnel, and its plain IP for the parts of the system
 /// that need one (the VPN's announced resolver, the core's own lookups).
 class DnsChoice {
@@ -69,6 +113,10 @@ class OrbitSettings {
     this.activeSubscription,
     this.selectedServers = const {},
     this.buttonStyle = PowerButtonStyle.orbit,
+    this.pingType = PingType.proxyGet,
+    this.pingMode = PingMode.normal,
+    this.pingTimeout = 5,
+    this.pingUrl = defaultPingUrl,
   });
 
   final RoutingMode routing;
@@ -88,6 +136,15 @@ class OrbitSettings {
 
   final PowerButtonStyle buttonStyle;
 
+  final PingType pingType;
+
+  /// For pings through the proxy only.
+  final PingMode pingMode;
+
+  /// Seconds, 5–15.
+  final int pingTimeout;
+  final String pingUrl;
+
   DnsChoice get dnsChoice => DnsChoice.byId(dns);
 
   OrbitSettings copyWith({
@@ -103,6 +160,10 @@ class OrbitSettings {
     bool clearActive = false,
     Map<String, String>? selectedServers,
     PowerButtonStyle? buttonStyle,
+    PingType? pingType,
+    PingMode? pingMode,
+    int? pingTimeout,
+    String? pingUrl,
   }) => OrbitSettings(
     routing: routing ?? this.routing,
     dns: dns ?? this.dns,
@@ -115,6 +176,10 @@ class OrbitSettings {
     activeSubscription: clearActive ? null : (activeSubscription ?? this.activeSubscription),
     selectedServers: selectedServers ?? this.selectedServers,
     buttonStyle: buttonStyle ?? this.buttonStyle,
+    pingType: pingType ?? this.pingType,
+    pingMode: pingMode ?? this.pingMode,
+    pingTimeout: pingTimeout ?? this.pingTimeout,
+    pingUrl: pingUrl ?? this.pingUrl,
   );
 
   Map<String, dynamic> toJson() => {
@@ -129,6 +194,10 @@ class OrbitSettings {
     'activeSubscription': activeSubscription,
     'selectedServers': selectedServers,
     'buttonStyle': buttonStyle.name,
+    'pingType': pingType.name,
+    'pingMode': pingMode.id,
+    'pingTimeout': pingTimeout,
+    'pingUrl': pingUrl,
   };
 
   factory OrbitSettings.fromJson(Map<String, dynamic> j) => OrbitSettings(
@@ -143,6 +212,10 @@ class OrbitSettings {
     activeSubscription: j['activeSubscription'] as String?,
     selectedServers: (j['selectedServers'] as Map? ?? const {}).cast<String, String>(),
     buttonStyle: PowerButtonStyle.values.asNameMap()[j['buttonStyle']] ?? PowerButtonStyle.orbit,
+    pingType: PingType.values.asNameMap()[j['pingType']] ?? PingType.proxyGet,
+    pingMode: PingMode.values.where((m) => m.id == j['pingMode']).firstOrNull ?? PingMode.normal,
+    pingTimeout: ((j['pingTimeout'] as num?)?.toInt() ?? 5).clamp(5, 15),
+    pingUrl: j['pingUrl'] as String? ?? defaultPingUrl,
   );
 
   static const _key = 'orbit_settings';

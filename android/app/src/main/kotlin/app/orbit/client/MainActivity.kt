@@ -21,6 +21,8 @@ import libXray.LibXray
 import org.json.JSONObject
 import java.io.ByteArrayOutputStream
 import java.util.concurrent.Executors
+import java.util.concurrent.TimeUnit
+import kotlin.math.roundToInt
 
 class MainActivity : FlutterActivity() {
     private val io = Executors.newCachedThreadPool()
@@ -74,17 +76,27 @@ class MainActivity : FlutterActivity() {
                     result.success(null)
                 }
 
-                "libxray" -> {
+                "libxray", "orbitPing" -> {
                     val request = call.argument<String>("request")!!
                     val dns = call.argument<String>("dns") ?: "1.1.1.1"
+                    val orbitPing = call.method == "orbitPing"
                     io.execute {
                         val response = runCatching {
                             useDns(dns)
-                            LibXray.invoke(request)
+                            if (orbitPing) LibXray.orbitPing(request) else LibXray.invoke(request)
                         }.getOrElse {
                             JSONObject().put("success", false).put("error", it.message ?: it.toString()).toString()
                         }
                         runOnUiThread { result.success(response) }
+                    }
+                }
+
+                "icmpPing" -> {
+                    val host = call.argument<String>("host")!!
+                    val timeout = call.argument<Int>("timeout") ?: 5
+                    io.execute {
+                        val delay = icmpPing(host, timeout)
+                        runOnUiThread { result.success(delay) }
                     }
                 }
 
@@ -168,6 +180,19 @@ class MainActivity : FlutterActivity() {
         LibXray.setDNS(Unprotected, server)
         dnsServer = server
     }
+
+    /** One echo through the system's ping (apps may not open raw sockets); milliseconds, or -1. */
+    private fun icmpPing(host: String, timeoutSeconds: Int): Int = runCatching {
+        val process = ProcessBuilder("/system/bin/ping", "-c", "1", "-W", "$timeoutSeconds", "-n", host)
+            .redirectErrorStream(true)
+            .start()
+        if (!process.waitFor(timeoutSeconds + 2L, TimeUnit.SECONDS)) {
+            process.destroy()
+            return@runCatching -1
+        }
+        val output = process.inputStream.bufferedReader().readText()
+        Regex("""time=([0-9.]+)""").find(output)?.groupValues?.get(1)?.toDouble()?.roundToInt() ?: -1
+    }.getOrDefault(-1)
 
     private object Unprotected : DialerController {
         override fun protectFd(fd: Long): Boolean = true
