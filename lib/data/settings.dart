@@ -21,6 +21,20 @@ enum AppsMode {
   exclude,
 }
 
+/// The connect button's look, picked under Оформление.
+enum PowerButtonStyle {
+  /// A still button with an orbit turning round it.
+  orbit,
+
+  /// The disc that opens into an eight-petal flower.
+  flower;
+
+  String get label => switch (this) {
+    orbit => 'Орбита',
+    flower => 'Ромашка',
+  };
+}
+
 /// A DNS server: DNS over HTTPS through the tunnel, and its plain IP for the parts of the system
 /// that need one (the VPN's announced resolver, the core's own lookups).
 class DnsChoice {
@@ -54,6 +68,7 @@ class OrbitSettings {
     this.debugLog = false,
     this.activeSubscription,
     this.selectedServers = const {},
+    this.buttonStyle = PowerButtonStyle.orbit,
   });
 
   final RoutingMode routing;
@@ -71,6 +86,8 @@ class OrbitSettings {
   /// Picked server per subscription id; a missing entry means "Авто".
   final Map<String, String> selectedServers;
 
+  final PowerButtonStyle buttonStyle;
+
   DnsChoice get dnsChoice => DnsChoice.byId(dns);
 
   OrbitSettings copyWith({
@@ -85,6 +102,7 @@ class OrbitSettings {
     String? activeSubscription,
     bool clearActive = false,
     Map<String, String>? selectedServers,
+    PowerButtonStyle? buttonStyle,
   }) => OrbitSettings(
     routing: routing ?? this.routing,
     dns: dns ?? this.dns,
@@ -96,6 +114,7 @@ class OrbitSettings {
     debugLog: debugLog ?? this.debugLog,
     activeSubscription: clearActive ? null : (activeSubscription ?? this.activeSubscription),
     selectedServers: selectedServers ?? this.selectedServers,
+    buttonStyle: buttonStyle ?? this.buttonStyle,
   );
 
   Map<String, dynamic> toJson() => {
@@ -109,6 +128,7 @@ class OrbitSettings {
     'debugLog': debugLog,
     'activeSubscription': activeSubscription,
     'selectedServers': selectedServers,
+    'buttonStyle': buttonStyle.name,
   };
 
   factory OrbitSettings.fromJson(Map<String, dynamic> j) => OrbitSettings(
@@ -122,6 +142,7 @@ class OrbitSettings {
     debugLog: j['debugLog'] as bool? ?? false,
     activeSubscription: j['activeSubscription'] as String?,
     selectedServers: (j['selectedServers'] as Map? ?? const {}).cast<String, String>(),
+    buttonStyle: PowerButtonStyle.values.asNameMap()[j['buttonStyle']] ?? PowerButtonStyle.orbit,
   );
 
   static const _key = 'orbit_settings';

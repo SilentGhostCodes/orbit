@@ -10,6 +10,7 @@ import 'package:orbit/ui/subscription_sheets.dart';
 import 'package:orbit/util/format.dart';
 import 'package:orbit/util/server_meta.dart';
 import 'package:orbit/widgets/orbit_button.dart';
+import 'package:orbit/widgets/power_button.dart';
 import 'package:orbit/widgets/orbit_widgets.dart';
 
 final _tickerProvider = StreamProvider.autoDispose<DateTime>(
@@ -209,7 +210,8 @@ class _ConnectArea extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        OrbitButton(
+        PowerButton(
+          style: ref.watch(settingsProvider.select((s) => s.buttonStyle)),
           state: buttonState,
           onTap: ui.picking ? null : () => ref.read(connectionProvider.notifier).toggle(),
         ),

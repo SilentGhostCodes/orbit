@@ -5,6 +5,7 @@ import 'package:orbit/data/settings.dart';
 import 'package:orbit/state/providers.dart';
 import 'package:orbit/theme/orbit_theme.dart';
 import 'package:orbit/ui/about_page.dart';
+import 'package:orbit/ui/appearance_page.dart';
 import 'package:orbit/ui/apps_page.dart';
 import 'package:orbit/ui/logs_page.dart';
 import 'package:orbit/widgets/orbit_widgets.dart';
@@ -86,6 +87,11 @@ class SettingsPage extends ConsumerWidget {
               onChanged: (v) => notifier.change((s) => s.copyWith(fragment: v), reconnect: true),
             ),
             const SectionLabel('Приложение'),
+            OrbitTile(
+              title: 'Оформление',
+              value: 'Кнопка: ${s.buttonStyle.label}',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const AppearancePage())),
+            ),
             OrbitTile(
               title: 'Логи',
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const LogsPage())),
