@@ -38,11 +38,15 @@ abstract class LibXray {
     return data['text'] as String;
   }
 
+  /// libXray takes at most this many configs per pingBatch call.
+  static const pingBatchSize = 5;
+
   /// Round trip through each config's "proxy" outbound, in milliseconds; null where it failed.
-  /// libXray refuses while it runs a tunnel in the same process, which is why the VPN has its own.
+  /// At most [pingBatchSize] configs. libXray refuses while it runs a tunnel in the same process,
+  /// which is why the VPN has its own.
   static Future<List<int?>> ping(
     List<String> xrayConfigs, {
-    int timeoutSeconds = 5,
+    int timeoutSeconds = 4,
     String url = 'https://www.gstatic.com/generate_204',
   }) async {
     if (xrayConfigs.isEmpty) return const [];

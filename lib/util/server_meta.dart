@@ -69,10 +69,11 @@ String? guessCountry(String tag, {String? ipCountry}) {
   return code?.group(1)?.toUpperCase();
 }
 
-/// The name without its flag and stray separators.
+/// The name without its flag and stray separators; "|" becomes "·", since in Manrope it reads as "I".
 String displayNameOf(String tag) {
   final name = tag
       .replaceAll(_flagPattern, '')
+      .replaceAll(RegExp(r'\s*\|\s*'), ' · ')
       .trim()
       .replaceFirst(RegExp(r'^[\s|·\-_]+'), '')
       .trim();
@@ -88,7 +89,8 @@ String protocolLabel(String type, {String? transport, bool reality = false}) {
     'trojan' => 'Trojan',
     'shadowsocks' || 'ss' => 'Shadowsocks',
     'hysteria2' || 'hy2' => 'Hysteria2',
-    'hysteria' => 'Hysteria',
+    // Xray calls Hysteria 2 "hysteria", over a "hysteria" network
+    'hysteria' => 'Hysteria2',
     'tuic' => 'TUIC',
     'wireguard' => 'WireGuard',
     'ssh' => 'SSH',
@@ -100,7 +102,7 @@ String protocolLabel(String type, {String? transport, bool reality = false}) {
   };
   if (reality) return '$base Reality';
   final t = transport?.toLowerCase();
-  if (t == null || t.isEmpty || t == 'tcp' || t == 'raw') return base;
+  if (t == null || t.isEmpty || t == 'tcp' || t == 'raw' || t == type.toLowerCase()) return base;
   final label = switch (t) {
     'xhttp' || 'splithttp' => 'XHTTP',
     'httpupgrade' => 'HTTPUpgrade',

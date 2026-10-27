@@ -232,27 +232,34 @@ class PingsNotifier extends Notifier<Pings> {
   @override
   Pings build() => const Pings();
 
-  /// Pings every server of [sub] at once. The app itself is outside the tunnel, so this is the real
-  /// round trip to each server, connected or not.
+  /// Pings every server of [sub], [LibXray.pingBatchSize] at a time, filling the list in as each
+  /// batch answers. The app itself is outside the tunnel, so this is the real round trip to each
+  /// server, connected or not.
   Future<Map<String, int?>> pingAll(Subscription sub) async {
     final keys = [for (final s in sub.servers) Pings.key(sub.id, s.name)];
     state = Pings(delays: state.delays, running: {...state.running, ...keys});
     final settings = ref.read(settingsProvider);
     LibXray.dns = settings.dnsChoice.ip;
-    Map<String, int?> result;
+    final result = <String, int?>{};
     String? error;
-    try {
-      final delays = await LibXray.ping([for (final s in sub.servers) pingConfig(s, fragment: settings.fragment)]);
-      result = {for (final (i, s) in sub.servers.indexed) s.name: i < delays.length ? delays[i] : null};
-    } on Object catch (e) {
-      result = {for (final s in sub.servers) s.name: null};
-      error = e.toString();
+    for (var i = 0; i < sub.servers.length; i += LibXray.pingBatchSize) {
+      final batch = sub.servers.skip(i).take(LibXray.pingBatchSize).toList();
+      List<int?> delays;
+      try {
+        delays = await LibXray.ping([for (final s in batch) pingConfig(s, fragment: settings.fragment)]);
+      } on Object catch (e) {
+        delays = const [];
+        error = e.toString();
+      }
+      final batchResult = {for (final (j, s) in batch.indexed) s.name: j < delays.length ? delays[j] : null};
+      result.addAll(batchResult);
+      final done = [for (final s in batch) Pings.key(sub.id, s.name)];
+      state = Pings(
+        delays: {...state.delays, for (final e in batchResult.entries) Pings.key(sub.id, e.key): e.value},
+        running: {...state.running}..removeAll(done),
+        error: error,
+      );
     }
-    state = Pings(
-      delays: {...state.delays, for (final e in result.entries) Pings.key(sub.id, e.key): e.value},
-      running: {...state.running}..removeAll(keys),
-      error: error,
-    );
     return result;
   }
 }
@@ -299,7 +306,21 @@ class ConnectionController extends Notifier<ConnectionUi> {
     return best.firstOrNull ?? sub.servers.firstOrNull;
   }
 
+  bool _connecting = false;
+
+  /// One connect at a time: taps and setting changes that land while one runs are dropped, the
+  /// running one already uses the latest settings it read.
   Future<void> connect() async {
+    if (_connecting) return;
+    _connecting = true;
+    try {
+      await _connect();
+    } finally {
+      _connecting = false;
+    }
+  }
+
+  Future<void> _connect() async {
     final sub = ref.read(activeSubscriptionProvider);
     if (sub == null || sub.servers.isEmpty) {
       state = const ConnectionUi(error: 'Нет серверов');
