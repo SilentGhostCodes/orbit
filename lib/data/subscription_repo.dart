@@ -4,7 +4,9 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:orbit/core/libxray.dart';
 import 'package:orbit/data/device.dart';
+import 'package:orbit/data/incy_link.dart';
 import 'package:orbit/data/models.dart';
+import 'package:orbit/data/panel_client.dart';
 import 'package:orbit/data/subscription_parser.dart';
 import 'package:orbit/data/wrapped_link.dart';
 import 'package:path_provider/path_provider.dart';
@@ -18,15 +20,25 @@ class SubscriptionException implements Exception {
   String toString() => message;
 }
 
+/// The panel answered, but not with servers: worth asking again as another app.
+class _NoServers extends SubscriptionException {
+  _NoServers(super.message);
+}
+
+typedef FetchResult = ({List<Server> servers, SubscriptionInfo info, String fallbackName, String url, PanelClient client});
+
 /// Downloads, parses and stores subscriptions.
 class SubscriptionRepo {
-  SubscriptionRepo(this.userAgent, {this.device});
+  SubscriptionRepo(this.userAgent, {this.device, http.Client Function()? httpClient})
+    : _httpClient = httpClient ?? http.Client.new;
 
   /// Starts with "Orbit/" so a panel rule (Remnawave: `^(?:…|orbit)` → XRAY_JSON) can pick the format.
   final String userAgent;
 
-  /// Sent as Remnawave's device headers (HWID).
+  /// Sent as Remnawave's device headers (HWID), the same whichever app Orbit introduces itself as.
   final DeviceInfo? device;
+
+  final http.Client Function() _httpClient;
 
   static Future<File> _file() async => File('${(await getApplicationSupportDirectory()).path}/subscriptions.json');
 
@@ -66,20 +78,32 @@ class SubscriptionRepo {
   /// How many wrapped links (pages → happ:// → URL → …) one fetch follows before giving up.
   static const _maxUnwraps = 3;
 
-  /// Downloads [url]. Redirect pages are followed through: an HTTP redirect to `happ://…`, or a web
-  /// page that opens Happ with an encrypted link, lead to the subscription inside. `url` in the
-  /// result is the one to store and refresh: [url] itself, or the subscription a wrapped link held.
-  Future<({List<Server> servers, SubscriptionInfo info, String fallbackName, String url})> fetch(
-    String url, {
-    int unwraps = 0,
-  }) async {
+  /// Downloads [url], introducing Orbit as [client] first (the one that worked last time) and, if
+  /// the panel answers without servers, as the other [PanelClient]s in turn. Redirect pages are
+  /// followed through: an HTTP redirect to `happ://…`, or a web page that opens Happ with an
+  /// encrypted link, lead to the subscription inside. `url` in the result is the one to store and
+  /// refresh: [url] itself, or the subscription a wrapped link held; `client`, the app that worked.
+  Future<FetchResult> fetch(String url, {PanelClient client = PanelClient.orbit, int unwraps = 0}) async {
     final uri = Uri.tryParse(url.trim());
     if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https') || uri.host.isEmpty) {
       throw SubscriptionException('Это не ссылка на подписку');
     }
-    final headers = {'User-Agent': userAgent, 'Accept': '*/*', ...?device?.headers};
+    final order = [client, for (final c in [PanelClient.orbit, ...PanelClient.fallbacks]) if (c != client) c];
+    _NoServers? first;
+    for (final c in order) {
+      try {
+        return await _fetchAs(url.trim(), uri, c, unwraps);
+      } on _NoServers catch (e) {
+        first ??= e; // Orbit's own answer explains it best
+      }
+    }
+    throw SubscriptionException(first!.message);
+  }
 
-    final client = http.Client();
+  Future<FetchResult> _fetchAs(String url, Uri uri, PanelClient client, int unwraps) async {
+    final headers = {...client.headers(userAgent), 'Accept': '*/*', ...?device?.headers};
+
+    final connection = _httpClient();
     late http.Response response;
     var current = uri;
     try {
@@ -88,8 +112,9 @@ class SubscriptionRepo {
           ..followRedirects = false
           ..headers.addAll(headers);
         try {
-          response = await http.Response.fromStream(await client.send(request).timeout(_timeout)).timeout(_timeout);
+          response = await http.Response.fromStream(await connection.send(request).timeout(_timeout)).timeout(_timeout);
         } on Object catch (e) {
+          // unreachable is unreachable as any app: no point asking again
           throw SubscriptionException('Не удалось загрузить подписку: $e');
         }
         final location = response.headers['location'];
@@ -109,49 +134,62 @@ class SubscriptionRepo {
         current = next;
       }
     } finally {
-      client.close();
+      connection.close();
     }
 
     if (response.statusCode != 200) {
-      throw SubscriptionException('Панель ответила ${response.statusCode}');
+      throw _NoServers('Панель ответила ${response.statusCode}');
     }
     // some panels put a byte order mark in front of the JSON
     final body = utf8.decode(response.bodyBytes, allowMalformed: true).replaceFirst('\uFEFF', '');
 
     final type = response.headers['content-type']?.toLowerCase() ?? '';
-    final page = type.contains('html') || body.trimLeft().startsWith('<');
-    if (page) {
+    if (type.contains('html') || body.trimLeft().startsWith('<')) {
       final inner = WrappedLink.findIn(body);
       if (inner != null) return _fetchWrapped(inner, unwraps);
-      throw SubscriptionException('По ссылке открылась веб-страница, а не подписка');
+      throw _NoServers('По ссылке открылась веб-страница, а не подписка');
     }
+    if (_isAccountInfo(body)) throw _NoServers('Панель не отдаёт серверы этому приложению');
 
     final List<Server> servers;
     try {
       servers = await parseBody(body);
-    } on SubscriptionException {
+    } on SubscriptionException catch (e) {
       // a page served as plain text
       final inner = WrappedLink.findIn(body);
-      if (inner == null) rethrow;
+      if (inner == null) throw _NoServers(e.message);
       return _fetchWrapped(inner, unwraps);
     }
+    if (servers.isEmpty) throw _NoServers('В подписке не нашлось серверов');
     return (
       servers: servers,
       info: SubscriptionInfo.fromHeaders(response.headers),
       fallbackName: _nameFromDisposition(response.headers['content-disposition']) ?? current.host,
       // plain HTTP redirects are followed again on every refresh; only wrapped links are replaced
-      url: url.trim(),
+      url: url,
+      client: client,
     );
   }
 
-  Future<({List<Server> servers, SubscriptionInfo info, String fallbackName, String url})> _fetchWrapped(
-    String link,
-    int unwraps,
-  ) async {
+  /// Remnawave's answer to an app it has no format for: the subscription page's data, no servers.
+  static bool _isAccountInfo(String body) {
+    final t = body.trimLeft();
+    if (!t.startsWith('{') || !t.contains('"isFound"')) return false;
+    try {
+      final json = jsonDecode(t);
+      return json is Map && json.containsKey('isFound') && !json.containsKey('outbounds');
+    } on FormatException {
+      return false;
+    }
+  }
+
+  Future<FetchResult> _fetchWrapped(String link, int unwraps) async {
     if (unwraps >= _maxUnwraps) throw SubscriptionException('Слишком много вложенных ссылок');
     final inner = await WrappedLink.unwrap(link);
     if (inner == null) throw SubscriptionException('Панель переадресовала на неизвестную ссылку');
-    return fetch(inner.url, unwraps: unwraps + 1);
+    // a subscription INCY hands out is likely served to INCY first
+    final client = IncyLink.matches(link) ? PanelClient.incy : PanelClient.orbit;
+    return fetch(inner.url, client: client, unwraps: unwraps + 1);
   }
 
   static String? _nameFromDisposition(String? header) {

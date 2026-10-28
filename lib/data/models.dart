@@ -1,3 +1,4 @@
+import 'package:orbit/data/panel_client.dart';
 import 'package:orbit/util/server_meta.dart';
 
 /// One server: the Xray outbounds that reach it, the one doing so first and tagged "proxy".
@@ -84,6 +85,7 @@ class Subscription {
     this.expire,
     this.autoUpdate = true,
     this.updateHours = 12,
+    this.client = PanelClient.orbit,
   });
 
   final String id;
@@ -105,6 +107,9 @@ class Subscription {
   final bool autoUpdate;
   final int updateHours;
 
+  /// The app the panel answered with servers (see [PanelClient]).
+  final PanelClient client;
+
   int get used => upload + download;
 
   bool get needsUpdate =>
@@ -121,6 +126,7 @@ class Subscription {
     bool clearExpire = false,
     bool? autoUpdate,
     int? updateHours,
+    PanelClient? client,
   }) => Subscription(
     id: id,
     url: url,
@@ -133,6 +139,7 @@ class Subscription {
     expire: clearExpire ? null : (expire ?? this.expire),
     autoUpdate: autoUpdate ?? this.autoUpdate,
     updateHours: updateHours ?? this.updateHours,
+    client: client ?? this.client,
   );
 
   Map<String, dynamic> toJson() => {
@@ -147,6 +154,7 @@ class Subscription {
     'expire': expire?.toIso8601String(),
     'autoUpdate': autoUpdate,
     'updateHours': updateHours,
+    'client': client.name,
   };
 
   factory Subscription.fromJson(Map<String, dynamic> json) => Subscription(
@@ -161,5 +169,6 @@ class Subscription {
     expire: json['expire'] == null ? null : DateTime.parse(json['expire'] as String),
     autoUpdate: json['autoUpdate'] as bool? ?? true,
     updateHours: json['updateHours'] as int? ?? 12,
+    client: PanelClient.fromName(json['client']),
   );
 }

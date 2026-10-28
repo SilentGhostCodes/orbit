@@ -7,7 +7,9 @@ import 'package:orbit/core/libxray.dart';
 import 'package:orbit/core/native.dart';
 import 'package:orbit/core/xray_config.dart';
 import 'package:orbit/data/device.dart';
+import 'package:orbit/data/incy_link.dart';
 import 'package:orbit/data/models.dart';
+import 'package:orbit/data/panel_client.dart';
 import 'package:orbit/data/settings.dart';
 import 'package:orbit/data/subscription_repo.dart';
 import 'package:orbit/data/wrapped_link.dart';
@@ -107,6 +109,8 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
   Future<Subscription> add(String input, {bool autoUpdate = true, int updateHours = 12}) async {
     var text = input.trim();
     String? givenName;
+    // a subscription INCY hands out is likely served to INCY first
+    final client = IncyLink.matches(text) ? PanelClient.incy : PanelClient.orbit;
     // happ://crypt…, incy://crypt1/…, happ://add/…
     final wrapped = await WrappedLink.unwrap(text);
     if (wrapped != null) {
@@ -121,7 +125,7 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
         await refresh(existing.id);
         return state.firstWhere((s) => s.id == existing.id);
       }
-      final r = await _repo.fetch(text);
+      final r = await _repo.fetch(text, client: client);
       // a redirect page leads to the real subscription: that one is stored, and may already be here
       final known = state.where((s) => s.url == r.url).firstOrNull;
       if (known != null) {
@@ -140,6 +144,7 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
         expire: r.info.expire,
         autoUpdate: autoUpdate,
         updateHours: updateHours,
+        client: r.client,
       );
     } else {
       sub = Subscription(
@@ -166,7 +171,8 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
     final updating = ref.read(updatingProvider.notifier);
     updating.set(id, true);
     try {
-      final r = await _repo.fetch(sub!.url!);
+      final current = sub!;
+      final r = await _repo.fetch(current.url!, client: current.client);
       await _store([
         for (final s in state)
           if (s.id == id)
@@ -179,6 +185,7 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
               total: r.info.total,
               expire: r.info.expire,
               clearExpire: r.info.expire == null,
+              client: r.client,
             )
           else
             s,

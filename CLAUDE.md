@@ -34,6 +34,11 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   that opens Happ from a script, button or meta refresh). `SubscriptionRepo.fetch` follows HTTP
   redirects by hand (a Location may be happ://…) and such pages, at most 3 levels deep, and returns
   the final `url`, which is what gets stored.
+- Panels pick the format by User-Agent, and some answer an app they do not know without servers
+  (Remnawave's `{"isFound":…}` page data, a 404, an HTML page): `SubscriptionRepo.fetch` then asks
+  again as INCY, then v2rayNG (`PanelClient`, same HWID headers), and keeps the one that worked on
+  the subscription (`Subscription.client`), so refreshes go straight to it. Subscriptions from
+  incy:// links start with INCY. Network errors are not retried as other apps.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's
   «Подписки» row in step when a format is added.
 
