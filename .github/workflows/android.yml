@@ -4,6 +4,8 @@ on:
   push:
     branches: [main]
     tags: ["v*"]
+    # notes alone change nothing in the APK: no new build, no duplicate release
+    paths-ignore: ["**.md", "design/**"]
   pull_request:
   workflow_dispatch:
 

@@ -48,7 +48,7 @@ abstract class WrappedLink {
     final add = _add.firstMatch(text);
     if (add != null) {
       var inner = add.group(1)!.trim();
-      if (inner.toLowerCase().startsWith('http%3a')) {
+      if (RegExp(r'^https?%3a', caseSensitive: false).hasMatch(inner)) {
         try {
           inner = Uri.decodeComponent(inner);
         } on Object {
