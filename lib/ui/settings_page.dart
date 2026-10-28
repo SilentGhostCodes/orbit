@@ -7,6 +7,7 @@ import 'package:orbit/theme/orbit_theme.dart';
 import 'package:orbit/ui/about_page.dart';
 import 'package:orbit/ui/appearance_page.dart';
 import 'package:orbit/ui/apps_page.dart';
+import 'package:orbit/ui/formats_page.dart';
 import 'package:orbit/ui/fragment_page.dart';
 import 'package:orbit/ui/logs_page.dart';
 import 'package:orbit/ui/ping_settings_page.dart';
@@ -110,6 +111,12 @@ class SettingsPage extends ConsumerWidget {
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PingSettingsPage())),
             ),
             const SectionLabel('Приложение'),
+            OrbitTile(
+              title: 'Форматы подписок',
+              subtitle: 'Ссылки, JSON, Happ и INCY',
+              trailing: _NewBadge(), // not const: it takes the accent, which the user can change
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FormatsPage())),
+            ),
             OrbitTile(
               title: 'Оформление',
               value: 'Кнопка: ${s.buttonStyle.label}',
@@ -217,3 +224,20 @@ Future<void> pick<T>(
     ),
   ),
 );
+
+/// «новое» next to a settings row.
+class _NewBadge extends StatelessWidget {
+  // ignore: prefer_const_constructors_in_immutables
+  _NewBadge();
+
+  @override
+  Widget build(BuildContext context) => Container(
+    margin: const EdgeInsets.only(left: 12),
+    padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+    decoration: BoxDecoration(
+      color: OrbitColors.accent.withValues(alpha: .16),
+      borderRadius: BorderRadius.circular(6),
+    ),
+    child: Text('новое', style: OrbitText.caption.copyWith(fontSize: 11, color: OrbitColors.accent)),
+  );
+}

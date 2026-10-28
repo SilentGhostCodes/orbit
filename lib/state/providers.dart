@@ -7,6 +7,7 @@ import 'package:orbit/core/libxray.dart';
 import 'package:orbit/core/native.dart';
 import 'package:orbit/core/xray_config.dart';
 import 'package:orbit/data/device.dart';
+import 'package:orbit/data/happ_link.dart';
 import 'package:orbit/data/incy_link.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/settings.dart';
@@ -112,6 +113,13 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
       if (link == null) throw SubscriptionException('Не удалось открыть ссылку incy://');
       text = link.url.trim();
       givenName = link.name;
+    } else if (HappLink.matches(text)) {
+      try {
+        text = (await HappLink.decrypt(text)).trim();
+      } on HappLinkException catch (e) {
+        throw SubscriptionException(e.message);
+      }
+      // usually a subscription URL; anything else (share links) is parsed as text below
     }
     final id = DateTime.now().microsecondsSinceEpoch.toString();
     final Subscription sub;

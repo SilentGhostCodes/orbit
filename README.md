@@ -5,6 +5,8 @@ A minimal Android VPN client, written from scratch in Flutter/Dart on top of
 
 - **Subscriptions:** Xray JSON (Remnawave, Marzban) as the panel wrote it, share links and base64
   through libXray. Traffic and expiry from `subscription-userinfo`, the name from `profile-title`.
+  Encrypted links open too: `incy://crypt1` and Happ's `happ://crypt…crypt5` (keys in `assets/happ/`,
+  rebuilt by `tool/happ_keys.py`).
   The User-Agent is `Orbit/<version> (android)`: in Remnawave, add `orbit` to the XRAY_JSON rule.
 - **Protocols:** whatever Xray-core runs — VLESS (Reality, XHTTP, WS, gRPC…), VMess, Trojan,
   Shadowsocks, Hysteria2; CDN setups with XHTTP `extra`/`downloadSettings` included.

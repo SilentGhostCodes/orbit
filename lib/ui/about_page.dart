@@ -34,7 +34,7 @@ class AboutPage extends ConsumerWidget {
           if (build != null) OrbitTile(title: 'Сборка', value: build),
           OrbitTile(title: 'Ядро', value: xray == null ? 'Xray-core' : 'Xray-core $xray'),
           const OrbitTile(title: 'Протоколы', value: 'VLESS, VMess, Trojan, Shadowsocks, Hysteria2'),
-          const OrbitTile(title: 'Подписки', value: 'Xray JSON, ссылки, base64, incy://'),
+          const OrbitTile(title: 'Подписки', value: 'Xray JSON, ссылки, base64, incy://, happ://'),
           if (boot.device != null) ...[
             OrbitTile(
               title: 'Устройство',
