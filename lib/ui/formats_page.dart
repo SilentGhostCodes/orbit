@@ -28,6 +28,7 @@ class FormatsPage extends StatelessWidget {
         const SizedBox(height: 4),
         const SectionLabel('Обычные'),
         const OrbitTile(title: 'Ссылка на подписку', value: 'https://'),
+        const OrbitTile(title: 'Ссылка-переадресация', subtitle: 'Страница, которая открывает Happ или INCY'),
         const OrbitTile(title: 'Xray JSON', subtitle: 'Remnawave, Marzban'),
         const OrbitTile(title: 'Ссылки на серверы', subtitle: 'vless, vmess, trojan, ss, hy2'),
         const OrbitTile(title: 'base64', value: 'список ссылок', divider: false),

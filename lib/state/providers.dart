@@ -7,11 +7,10 @@ import 'package:orbit/core/libxray.dart';
 import 'package:orbit/core/native.dart';
 import 'package:orbit/core/xray_config.dart';
 import 'package:orbit/data/device.dart';
-import 'package:orbit/data/happ_link.dart';
-import 'package:orbit/data/incy_link.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/settings.dart';
 import 'package:orbit/data/subscription_repo.dart';
+import 'package:orbit/data/wrapped_link.dart';
 
 /// What main() reads before the first frame.
 class Boot {
@@ -108,18 +107,11 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
   Future<Subscription> add(String input, {bool autoUpdate = true, int updateHours = 12}) async {
     var text = input.trim();
     String? givenName;
-    if (IncyLink.matches(text)) {
-      final link = IncyLink.decrypt(text);
-      if (link == null) throw SubscriptionException('Не удалось открыть ссылку incy://');
-      text = link.url.trim();
-      givenName = link.name;
-    } else if (HappLink.matches(text)) {
-      try {
-        text = (await HappLink.decrypt(text)).trim();
-      } on HappLinkException catch (e) {
-        throw SubscriptionException(e.message);
-      }
-      // usually a subscription URL; anything else (share links) is parsed as text below
+    // happ://crypt…, incy://crypt1/…, happ://add/…
+    final wrapped = await WrappedLink.unwrap(text);
+    if (wrapped != null) {
+      text = wrapped.url;
+      givenName = wrapped.name;
     }
     final id = DateTime.now().microsecondsSinceEpoch.toString();
     final Subscription sub;
@@ -130,9 +122,15 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
         return state.firstWhere((s) => s.id == existing.id);
       }
       final r = await _repo.fetch(text);
+      // a redirect page leads to the real subscription: that one is stored, and may already be here
+      final known = state.where((s) => s.url == r.url).firstOrNull;
+      if (known != null) {
+        await refresh(known.id);
+        return state.firstWhere((s) => s.id == known.id);
+      }
       sub = Subscription(
         id: id,
-        url: text,
+        url: r.url,
         name: r.info.title ?? givenName ?? r.fallbackName,
         servers: r.servers,
         updatedAt: DateTime.now(),

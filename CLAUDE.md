@@ -29,6 +29,11 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   are in `assets/happ/keys.json` (hex n/d/p/q, rebuilt by `tool/happ_keys.py` when crypt5 gets new
   markers). The decrypted URL is still shown in the app for now; the user plans to hide it before
   release.
+- Wrapped links go through `WrappedLink`: `unwrap` opens happ://crypt…, incy://crypt1/ and
+  happ://add/<url>; `findIn` digs one out of a provider's redirect page (`https://…/t/<token>`
+  that opens Happ from a script, button or meta refresh). `SubscriptionRepo.fetch` follows HTTP
+  redirects by hand (a Location may be happ://…) and such pages, at most 3 levels deep, and returns
+  the final `url`, which is what gets stored.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's
   «Подписки» row in step when a format is added.
 

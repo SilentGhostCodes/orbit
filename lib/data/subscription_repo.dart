@@ -6,6 +6,7 @@ import 'package:orbit/core/libxray.dart';
 import 'package:orbit/data/device.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/subscription_parser.dart';
+import 'package:orbit/data/wrapped_link.dart';
 import 'package:path_provider/path_provider.dart';
 
 class SubscriptionException implements Exception {
@@ -59,30 +60,98 @@ class SubscriptionRepo {
     }
   }
 
-  Future<({List<Server> servers, SubscriptionInfo info, String fallbackName})> fetch(String url) async {
+  static const _timeout = Duration(seconds: 25);
+  static const _maxRedirects = 5;
+
+  /// How many wrapped links (pages → happ:// → URL → …) one fetch follows before giving up.
+  static const _maxUnwraps = 3;
+
+  /// Downloads [url]. Redirect pages are followed through: an HTTP redirect to `happ://…`, or a web
+  /// page that opens Happ with an encrypted link, lead to the subscription inside. `url` in the
+  /// result is the one to store and refresh: [url] itself, or the subscription a wrapped link held.
+  Future<({List<Server> servers, SubscriptionInfo info, String fallbackName, String url})> fetch(
+    String url, {
+    int unwraps = 0,
+  }) async {
     final uri = Uri.tryParse(url.trim());
-    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https')) {
+    if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https') || uri.host.isEmpty) {
       throw SubscriptionException('Это не ссылка на подписку');
     }
-    final http.Response response;
+    final headers = {'User-Agent': userAgent, 'Accept': '*/*', ...?device?.headers};
+
+    final client = http.Client();
+    late http.Response response;
+    var current = uri;
     try {
-      response = await http
-          .get(uri, headers: {'User-Agent': userAgent, 'Accept': '*/*', ...?device?.headers})
-          .timeout(const Duration(seconds: 25));
-    } on Object catch (e) {
-      throw SubscriptionException('Не удалось загрузить подписку: $e');
+      for (var hop = 0; ; hop++) {
+        final request = http.Request('GET', current)
+          ..followRedirects = false
+          ..headers.addAll(headers);
+        try {
+          response = await http.Response.fromStream(await client.send(request).timeout(_timeout)).timeout(_timeout);
+        } on Object catch (e) {
+          throw SubscriptionException('Не удалось загрузить подписку: $e');
+        }
+        final location = response.headers['location'];
+        if (!const {301, 302, 303, 307, 308}.contains(response.statusCode) || location == null) break;
+
+        final Uri next;
+        try {
+          next = current.resolve(location.trim());
+        } on FormatException {
+          throw SubscriptionException('Панель переадресовала на неверный адрес');
+        }
+        if (next.scheme != 'http' && next.scheme != 'https') {
+          // straight into an app: happ://crypt…, incy://… or happ://add/…
+          return await _fetchWrapped(location.trim(), unwraps);
+        }
+        if (hop >= _maxRedirects) throw SubscriptionException('Слишком много переадресаций');
+        current = next;
+      }
+    } finally {
+      client.close();
     }
+
     if (response.statusCode != 200) {
       throw SubscriptionException('Панель ответила ${response.statusCode}');
     }
     // some panels put a byte order mark in front of the JSON
     final body = utf8.decode(response.bodyBytes, allowMalformed: true).replaceFirst('\uFEFF', '');
-    final servers = await parseBody(body);
+
+    final type = response.headers['content-type']?.toLowerCase() ?? '';
+    final page = type.contains('html') || body.trimLeft().startsWith('<');
+    if (page) {
+      final inner = WrappedLink.findIn(body);
+      if (inner != null) return _fetchWrapped(inner, unwraps);
+      throw SubscriptionException('По ссылке открылась веб-страница, а не подписка');
+    }
+
+    final List<Server> servers;
+    try {
+      servers = await parseBody(body);
+    } on SubscriptionException {
+      // a page served as plain text
+      final inner = WrappedLink.findIn(body);
+      if (inner == null) rethrow;
+      return _fetchWrapped(inner, unwraps);
+    }
     return (
       servers: servers,
       info: SubscriptionInfo.fromHeaders(response.headers),
-      fallbackName: _nameFromDisposition(response.headers['content-disposition']) ?? uri.host,
+      fallbackName: _nameFromDisposition(response.headers['content-disposition']) ?? current.host,
+      // plain HTTP redirects are followed again on every refresh; only wrapped links are replaced
+      url: url.trim(),
     );
+  }
+
+  Future<({List<Server> servers, SubscriptionInfo info, String fallbackName, String url})> _fetchWrapped(
+    String link,
+    int unwraps,
+  ) async {
+    if (unwraps >= _maxUnwraps) throw SubscriptionException('Слишком много вложенных ссылок');
+    final inner = await WrappedLink.unwrap(link);
+    if (inner == null) throw SubscriptionException('Панель переадресовала на неизвестную ссылку');
+    return fetch(inner.url, unwraps: unwraps + 1);
   }
 
   static String? _nameFromDisposition(String? header) {
