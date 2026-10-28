@@ -24,8 +24,10 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
 - Subscription requests carry Remnawave's HWID headers (`DeviceInfo`): a random id kept in prefs, so it
   changes when the app is removed (builds are still signed with throwaway keys).
 
+- `incy://crypt1/` links open (`IncyLink`): INCY publishes the format and key for other clients (MIT).
+  Happ's crypt links stay unsupported: their keys were extracted from Happ, not published.
+
 ## Planned
 - Apply the user's design edits once they send them (from design/Orbit_дизайн.pdf).
-- Own encrypted links (orbit://crypt…, our key pair): postponed by the user; only if they bring it up. Not Happ decrypt:
-  declined, it relies on keys extracted from Happ.
+- Own encrypted links (orbit://crypt…, our key pair): postponed by the user; only if they bring it up.
 - A permanent signing key, before the app goes to other users (the user postponed it).

@@ -140,7 +140,7 @@ jobs:
         run: |
           flutter pub get
           flutter analyze
-          flutter test test/parser_test.dart test/ping_test.dart test/emit_configs_test.dart
+          flutter test test/parser_test.dart test/ping_test.dart test/emit_configs_test.dart test/incy_link_test.dart
 
       # Without these secrets every build is signed with a throwaway debug key, and installing one
       # over another fails. See README.

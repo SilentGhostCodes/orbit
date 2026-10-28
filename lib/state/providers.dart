@@ -7,6 +7,7 @@ import 'package:orbit/core/libxray.dart';
 import 'package:orbit/core/native.dart';
 import 'package:orbit/core/xray_config.dart';
 import 'package:orbit/data/device.dart';
+import 'package:orbit/data/incy_link.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/settings.dart';
 import 'package:orbit/data/subscription_repo.dart';
@@ -104,7 +105,14 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
 
   /// A subscription link, or share links / Xray JSON pasted as text.
   Future<Subscription> add(String input, {bool autoUpdate = true, int updateHours = 12}) async {
-    final text = input.trim();
+    var text = input.trim();
+    String? givenName;
+    if (IncyLink.matches(text)) {
+      final link = IncyLink.decrypt(text);
+      if (link == null) throw SubscriptionException('Не удалось открыть ссылку incy://');
+      text = link.url.trim();
+      givenName = link.name;
+    }
     final id = DateTime.now().microsecondsSinceEpoch.toString();
     final Subscription sub;
     if (text.startsWith('http://') || text.startsWith('https://')) {
@@ -117,7 +125,7 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
       sub = Subscription(
         id: id,
         url: text,
-        name: r.info.title ?? r.fallbackName,
+        name: r.info.title ?? givenName ?? r.fallbackName,
         servers: r.servers,
         updatedAt: DateTime.now(),
         upload: r.info.upload,

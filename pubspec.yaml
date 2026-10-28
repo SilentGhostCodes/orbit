@@ -1,7 +1,7 @@
 name: orbit
 description: "Orbit — Android VPN client on Xray-core."
 publish_to: 'none'
-version: 1.5.0+1
+version: 1.6.0+1
 
 environment:
   sdk: ^3.10.4
@@ -11,6 +11,7 @@ dependencies:
     sdk: flutter
   flutter_riverpod: ^3.3.2
   http: ^1.6.0
+  pointycastle: ^3.9.1
   mobile_scanner: ^7.4.2
   package_info_plus: ^10.2.2
   path_provider: ^2.1.6
