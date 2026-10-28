@@ -26,6 +26,6 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
 
 ## Planned
 - Apply the user's design edits once they send them (from design/Orbit_дизайн.pdf).
-- Own encrypted links (orbit://crypt…, our key pair), together with the signing key. Not Happ decrypt:
+- Own encrypted links (orbit://crypt…, our key pair): postponed by the user; only if they bring it up. Not Happ decrypt:
   declined, it relies on keys extracted from Happ.
 - A permanent signing key, before the app goes to other users (the user postponed it).
