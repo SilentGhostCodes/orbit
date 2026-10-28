@@ -27,8 +27,8 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
 - `incy://crypt1/` links open (`IncyLink`): INCY publishes the format and key for other clients (MIT).
 - `happ://crypt…` links open (`HappLink`, crypt–crypt5), ported from LeeeeT/happ-decryptor; the keys
   are in `assets/happ/keys.json` (hex n/d/p/q, rebuilt by `tool/happ_keys.py` when crypt5 gets new
-  markers). They were extracted from Happ, not published; the user chose to support them. The
-  decrypted URL is still shown in the app for now; the user plans to hide it before release.
+  markers). The decrypted URL is still shown in the app for now; the user plans to hide it before
+  release.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's
   «Подписки» row in step when a format is added.
 
