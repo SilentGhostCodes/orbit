@@ -1,0 +1,7 @@
+# runetfreedom/russia-v2ray-rules-dat geoip.dat, trimmed by core/geotrim in CI.
+# Countries are most of the file; panels for Russia name geoip:ru, the neighbours at most.
+-??
++ru
++by
++kz
++ua

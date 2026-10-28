@@ -58,6 +58,8 @@ class MainActivity : FlutterActivity() {
                 "start" -> {
                     VpnStore.configFile(this).writeText(call.argument<String>("config")!!)
                     VpnStore.optionsFile(this).writeText(call.argument<String>("vpn")!!)
+                    val fallback = call.argument<String>("fallback")
+                    if (fallback != null) VpnStore.fallbackFile(this).writeText(fallback) else VpnStore.fallbackFile(this).delete()
                     val intent = Intent(this, OrbitVpnService::class.java).setAction(VpnStore.ACTION_START)
                     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) startForegroundService(intent) else startService(intent)
                     result.success(null)

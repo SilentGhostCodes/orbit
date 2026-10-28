@@ -28,6 +28,9 @@ object VpnStore {
     /** The Xray config the tunnel runs. */
     fun configFile(ctx: Context) = File(ctx.filesDir, "active.json")
 
+    /** The same server with Orbit's own routing, for when the subscription's routing fails to start. */
+    fun fallbackFile(ctx: Context) = File(ctx.filesDir, "fallback.json")
+
     /** Per-app rules, DNS, the server name: see vpnOptions() in Dart. */
     fun optionsFile(ctx: Context) = File(ctx.filesDir, "vpn.json")
 

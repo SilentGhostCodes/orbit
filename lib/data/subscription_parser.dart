@@ -73,7 +73,12 @@ List<Server>? parseXrayJson(String body) {
     final remarks = config['remarks']?.toString().trim();
     if (remarks != null && remarks.isNotEmpty || configs.length > 1) {
       // a full config for one server
-      final server = serverFromOutbounds(remarks?.isNotEmpty ?? false ? remarks! : 'Сервер ${i + 1}', outbounds);
+      final server = serverFromOutbounds(
+        remarks?.isNotEmpty ?? false ? remarks! : 'Сервер ${i + 1}',
+        outbounds,
+        routing: config['routing'] is Map<String, dynamic> ? config['routing'] as Map<String, dynamic> : null,
+        dns: config['dns'] is Map<String, dynamic> ? config['dns'] as Map<String, dynamic> : null,
+      );
       if (server != null) servers.add(server);
     } else {
       // a bare node list: every proxy outbound is a server of its own
@@ -90,8 +95,14 @@ List<Server>? parseXrayJson(String body) {
 }
 
 /// Puts the outbound that reaches the server first and tags it "proxy"; the others (a fragment
-/// chain the proxy dials through, the panel's direct/block) follow untouched.
-Server? serverFromOutbounds(String name, List<Map<String, dynamic>> outbounds) {
+/// chain the proxy dials through, the panel's direct/block) follow untouched. The panel's
+/// [routing] rules that sent traffic to the proxy under another tag are pointed at "proxy".
+Server? serverFromOutbounds(
+  String name,
+  List<Map<String, dynamic>> outbounds, {
+  Map<String, dynamic>? routing,
+  Map<String, dynamic>? dns,
+}) {
   final proxyIndex = outbounds.indexWhere((o) => o['tag'] == 'proxy' && _isProxy(o));
   final index = proxyIndex >= 0 ? proxyIndex : outbounds.indexWhere(_isProxy);
   if (index < 0) return null;
@@ -102,7 +113,12 @@ Server? serverFromOutbounds(String name, List<Map<String, dynamic>> outbounds) {
     for (final (i, o) in outbounds.indexed)
       if (i != index && o['tag'] != 'proxy') _retarget(o, oldTag),
   ];
-  return Server(name: name, outbounds: [proxy, ...rest]);
+  return Server(
+    name: name,
+    outbounds: [proxy, ...rest],
+    routing: routing == null || oldTag == null || oldTag == 'proxy' ? routing : _retargetRules(routing, oldTag),
+    dns: dns,
+  );
 }
 
 /// Another outbound that dialled through the proxy under its old tag keeps doing so.
@@ -119,6 +135,25 @@ Map<String, dynamic> _retarget(Map<String, dynamic> outbound, Object? oldTag) {
     },
   };
 }
+
+Map<String, dynamic> _retargetRules(Map<String, dynamic> routing, Object oldTag) => {
+  ...routing,
+  if (routing['rules'] is List)
+    'rules': [
+      for (final r in routing['rules'] as List)
+        r is Map<String, dynamic> && r['outboundTag'] == oldTag ? {...r, 'outboundTag': 'proxy'} : r,
+    ],
+  if (routing['balancers'] is List)
+    'balancers': [
+      for (final b in routing['balancers'] as List)
+        b is Map<String, dynamic> && b['selector'] is List
+            ? {
+                ...b,
+                'selector': [for (final t in b['selector'] as List) t == oldTag ? 'proxy' : t],
+              }
+            : b,
+    ],
+};
 
 /// Outbounds from libXray's share link conversion: one server each, named by its tag.
 List<Server> serversFromLinkOutbounds(List<Map<String, dynamic>> outbounds) {
@@ -138,7 +173,7 @@ List<Server> dedupeNames(List<Server> servers) {
     for (final s in servers)
       () {
         final n = seen.update(s.name, (v) => v + 1, ifAbsent: () => 1);
-        return n == 1 ? s : Server(name: '${s.name} ($n)', outbounds: s.outbounds);
+        return n == 1 ? s : Server(name: '${s.name} ($n)', outbounds: s.outbounds, routing: s.routing, dns: s.dns);
       }(),
   ];
 }

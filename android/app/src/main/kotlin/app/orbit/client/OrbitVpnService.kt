@@ -64,18 +64,20 @@ class OrbitVpnService : VpnService() {
         try {
             if (running) stopCore()
             val config = JSONObject(VpnStore.configFile(this).readText())
-            // Xray appends to its log; each connection starts a fresh one
-            config.optJSONObject("log")?.optString("error")?.takeIf { it.isNotEmpty() }?.let {
-                runCatching { File(it).writeText("") }
+            options.optJSONArray("notes")?.let { notes ->
+                for (i in 0 until notes.length()) VpnStore.log(this, notes.optString(i))
             }
 
             val fd = establish(options)
-            config.put("env", (config.optJSONObject("env") ?: JSONObject()).put("xray.tun.fd", fd.toString()))
-
             val dns = options.optString("dnsIp", "1.1.1.1")
             LibXray.setDNS(Protector, "$dns:53")
-            val response = JSONObject(LibXray.invoke(request("runXray", JSONObject().put("xrayJson", config.toString()))))
-            if (!response.optBoolean("success")) throw IllegalStateException(response.optString("error", "Xray не запустился"))
+            val error = runXray(config, fd)
+            if (error != null) {
+                // the subscription's routing did not start: Orbit's own routing, rather than no VPN
+                val fallback = VpnStore.fallbackFile(this).takeIf { it.exists() } ?: throw IllegalStateException(error)
+                VpnStore.log(this, "роутинг подписки не запустился ($error), включаю роутинг Orbit")
+                runXray(JSONObject(fallback.readText()), fd)?.let { throw IllegalStateException(it) }
+            }
 
             running = true
             VpnStore.log(this, "connected: $serverName")
@@ -85,6 +87,21 @@ class OrbitVpnService : VpnService() {
             VpnStore.log(this, "start failed: ${e.message}")
             stop(e.message ?: e.toString())
         }
+    }
+
+    /** Starts Xray on [config] with the tunnel's [fd]; the error, or null once it runs. */
+    private fun runXray(config: JSONObject, fd: Int): String? {
+        // Xray appends to its log; each connection starts a fresh one
+        config.optJSONObject("log")?.optString("error")?.takeIf { it.isNotEmpty() }?.let {
+            runCatching { File(it).writeText("") }
+        }
+        val env = (config.optJSONObject("env") ?: JSONObject()).put("xray.tun.fd", fd.toString())
+        // the subscription's routing may name geosite:/geoip: lists
+        runCatching { env.put("xray.location.asset", GeoFiles.dir(this).path) }
+            .onFailure { VpnStore.log(this, "geo files: ${it.message}") }
+        config.put("env", env)
+        val response = JSONObject(LibXray.invoke(request("runXray", JSONObject().put("xrayJson", config.toString()))))
+        return if (response.optBoolean("success")) null else response.optString("error", "Xray не запустился")
     }
 
     private fun establish(options: JSONObject): Int {

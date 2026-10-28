@@ -16,11 +16,35 @@ void main() {
       {
         'remarks': '🇩🇪 Франкфурт CDN',
         'dns': {
-          'servers': ['geosite:category-ru'],
+          'servers': [
+            'https://1.1.1.1/dns-query',
+            {
+              'address': '77.88.8.8',
+              'domains': ['geosite:category-ru'],
+            },
+          ],
+          'queryStrategy': 'UseIPv4',
         },
         'routing': {
+          'domainStrategy': 'IPIfNonMatch',
           'rules': [
             {'outboundTag': 'direct', 'ip': ['geoip:private']},
+            {
+              'outboundTag': 'block',
+              'domain': ['geosite:category-ads-all'],
+            },
+            {
+              'outboundTag': 'direct',
+              'domain': ['geosite:category-ru', 'domain:ru'],
+            },
+            {
+              'outboundTag': 'direct',
+              'ip': ['geoip:ru'],
+            },
+            {
+              'outboundTag': 'proxy',
+              'domain': ['geosite:ru-blocked', 'geosite:youtube'],
+            },
           ],
         },
         'inbounds': [
@@ -62,16 +86,23 @@ void main() {
     expect(servers.single.protocol, 'VLESS XHTTP');
     expect(servers.single.proxy['tag'], 'proxy');
     if (dir == null) return;
+    final geo = GeoCodes.parse(
+      File('assets/xray/geosite.txt').readAsStringSync(),
+      File('assets/xray/geoip.txt').readAsStringSync(),
+    );
     for (final fragment in [false, true]) {
       final settings = OrbitSettings(fragment: fragment);
-      final full = buildXrayConfig(
-        server: servers.single,
-        settings: settings,
-        logPath: '$dir/xray.log',
-        ruCidrs: parseCidrList(File('assets/geo/ru4.txt').readAsStringSync()),
-      );
-      File('$dir/full${fragment ? '_fragment' : ''}.json').writeAsStringSync(jsonEncode(full));
-      File('$dir/ping${fragment ? '_fragment' : ''}.json').writeAsStringSync(pingConfig(servers.single, fragment: fragment));
+      for (final panel in [true, false]) {
+        final full = buildXrayConfig(
+          server: servers.single,
+          settings: settings.copyWith(subscriptionRouting: panel),
+          logPath: '$dir/xray.log',
+          ruCidrs: parseCidrList(File('assets/geo/ru4.txt').readAsStringSync()),
+          geo: geo,
+        );
+        File('$dir/full${fragment ? '_fragment' : ''}${panel ? '' : '_own'}.json').writeAsStringSync(jsonEncode(full));
+      }
+      File('$dir/ping${fragment ? '_fragment' : ''}.json').writeAsStringSync(pingConfig(servers.single, fragment: settings.fragmentOptions));
     }
   });
 }

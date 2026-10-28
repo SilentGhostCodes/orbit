@@ -158,9 +158,121 @@ void main() {
       expect(rules.length, 2);
     });
 
+    group('subscription routing', () {
+      // as Remnawave sends it, the proxy under its own tag
+      final parsed = parseXrayJson(
+        jsonEncode([
+          {
+            'remarks': 'NL',
+            'outbounds': [
+              _vless('nl-1'),
+              {'tag': 'direct', 'protocol': 'freedom'},
+              {'tag': 'block', 'protocol': 'blackhole'},
+            ],
+            'routing': {
+              'domainStrategy': 'IPIfNonMatch',
+              'rules': [
+                {
+                  'domain': ['geosite:category-ads-all'],
+                  'outboundTag': 'block',
+                },
+                {
+                  'domain': ['geosite:category-ru', 'domain:example.ru'],
+                  'outboundTag': 'direct',
+                },
+                {
+                  'ip': ['geoip:ru', 'geoip:private'],
+                  'outboundTag': 'direct',
+                },
+                {
+                  'domain': ['geosite:no-such-list'],
+                  'outboundTag': 'direct',
+                },
+                {
+                  'domain': ['geosite:youtube', 'ext:custom.dat:x'],
+                  'outboundTag': 'nl-1',
+                },
+              ],
+            },
+            'dns': {
+              'servers': [
+                'https://1.1.1.1/dns-query',
+                {
+                  'address': '77.88.8.8',
+                  'domains': ['geosite:category-ru'],
+                },
+                {
+                  'address': '9.9.9.9',
+                  'domains': ['geosite:no-such-list'],
+                },
+              ],
+              'hosts': {'geosite:no-such-list': '127.0.0.1', 'example.com': '1.2.3.4'},
+            },
+          },
+        ]),
+      )!.single;
+      const geo = GeoCodes(site: {'category-ads-all', 'category-ru', 'youtube'}, ip: {'ru', 'private'});
+
+      test('the panel routing and DNS are kept, rules aimed at the old proxy tag follow it', () {
+        expect(parsed.routing!['domainStrategy'], 'IPIfNonMatch');
+        expect(((parsed.routing!['rules'] as List).last as Map)['outboundTag'], 'proxy');
+        final back = Server.fromJson(jsonDecode(jsonEncode(parsed.toJson())) as Map<String, dynamic>);
+        expect(back.routing, parsed.routing);
+        expect(back.dns, parsed.dns);
+      });
+
+      test('on: the panel rules after Orbit\'s DNS and LAN rules, missing lists left out', () {
+        final notes = <String>[];
+        final c = buildXrayConfig(
+          server: parsed,
+          settings: const OrbitSettings(),
+          logPath: '/x/xray.log',
+          ruCidrs: const ['5.3.0.0/16'],
+          geo: geo,
+          notes: notes,
+        );
+        final routing = c['routing'] as Map;
+        expect(routing['domainStrategy'], 'IPIfNonMatch');
+        final rules = (routing['rules'] as List).cast<Map>();
+        expect(rules.map((r) => r['outboundTag']), ['orbit-dns', 'orbit-direct', 'block', 'direct', 'direct', 'proxy']);
+        // no Orbit RU rules
+        expect(rules.any((r) => (r['ip'] as List?)?.contains('5.3.0.0/16') ?? false), isFalse);
+        expect(rules.last['domain'], ['geosite:youtube']);
+        final dns = c['dns'] as Map;
+        expect((dns['servers'] as List).length, 2);
+        expect(dns['hosts'], {'example.com': '1.2.3.4'});
+        expect(notes.last, contains('geosite:no-such-list'));
+        expect(notes.last, contains('ext:custom.dat:x'));
+      });
+
+      test('off: Orbit routes by itself', () {
+        final c = buildXrayConfig(
+          server: parsed,
+          settings: const OrbitSettings(subscriptionRouting: false),
+          logPath: '/x/xray.log',
+          ruCidrs: const ['5.3.0.0/16'],
+          geo: geo,
+        );
+        final rules = ((c['routing'] as Map)['rules'] as List).cast<Map>();
+        expect(rules.any((r) => (r['ip'] as List?)?.contains('5.3.0.0/16') ?? false), isTrue);
+        expect((c['dns'] as Map)['servers'], ['https://1.1.1.1/dns-query']);
+      });
+    });
+
+    test('fragment settings: checked when read back', () {
+      expect(Fragment.validRange('100-200'), isTrue);
+      expect(Fragment.validRange('200-100'), isFalse);
+      expect(Fragment.validPackets('tlshello'), isTrue);
+      expect(Fragment.validPackets('1-3'), isTrue);
+      expect(Fragment.validPackets('abc'), isFalse);
+      final f = Fragment.fromJson({'packets': '1-3', 'length': 'x', 'interval': '5'});
+      expect(f, const Fragment(packets: '1-3', length: '100-200', interval: '5'));
+    });
+
     test('fragment: the proxy dials through it', () {
-      final outbounds = serverOutbounds(server, fragment: true);
+      final outbounds = serverOutbounds(server, fragment: const Fragment(packets: '1-3', length: '50-80', interval: '5'));
       expect(outbounds.last['tag'], 'orbit-fragment');
+      expect((outbounds.last['settings'] as Map)['fragment'], {'packets': '1-3', 'length': '50-80', 'interval': '5'});
       expect(((outbounds.first['streamSettings'] as Map)['sockopt'] as Map)['dialerProxy'], 'orbit-fragment');
       // the server's own copy is untouched
       expect((server.proxy['streamSettings'] as Map).containsKey('sockopt'), isFalse);

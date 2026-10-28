@@ -12,6 +12,7 @@ import 'package:orbit/data/settings.dart';
 import 'package:orbit/state/providers.dart';
 import 'package:orbit/theme/orbit_theme.dart';
 import 'package:orbit/ui/appearance_page.dart';
+import 'package:orbit/ui/fragment_page.dart';
 import 'package:orbit/ui/home_page.dart';
 import 'package:orbit/ui/ping_settings_page.dart';
 import 'package:orbit/ui/servers_page.dart';
@@ -145,5 +146,6 @@ void main() {
   testWidgets('home unlimited', (t) => _shoot(t, 'home_unlimited', const HomePage(), unlimited: true));
   testWidgets('settings', (t) => _shoot(t, 'settings', const SettingsPage()));
   testWidgets('appearance', (t) => _shoot(t, 'appearance', const AppearancePage()));
+  testWidgets('fragment', (t) => _shoot(t, 'fragment', const FragmentPage()));
   testWidgets('ping settings', (t) => _shoot(t, 'ping_settings', const PingSettingsPage()));
 }

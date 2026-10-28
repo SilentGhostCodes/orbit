@@ -1,7 +1,7 @@
 name: orbit
 description: "Orbit — Android VPN client on Xray-core."
 publish_to: 'none'
-version: 1.3.0+1
+version: 1.4.0+1
 
 environment:
   sdk: ^3.10.4
@@ -25,6 +25,7 @@ flutter:
   uses-material-design: true
   assets:
     - assets/geo/
+    - assets/xray/
   fonts:
     - family: Manrope
       fonts:

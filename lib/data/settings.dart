@@ -79,6 +79,56 @@ enum PingMode {
 
 const defaultPingUrl = 'https://www.gstatic.com/generate_204';
 
+/// How the TLS fragmentation hop cuts packets: Xray freedom's `fragment` settings.
+class Fragment {
+  const Fragment({this.packets = 'tlshello', this.length = '100-200', this.interval = '10-20'});
+
+  /// "tlshello" (only the ClientHello) or a range of packet numbers from the start, like "1-3".
+  final String packets;
+
+  /// Bytes per piece, a number or a range.
+  final String length;
+
+  /// Milliseconds between pieces, a number or a range.
+  final String interval;
+
+  static const defaults = Fragment();
+
+  Map<String, dynamic> toJson() => {'packets': packets, 'length': length, 'interval': interval};
+
+  factory Fragment.fromJson(Object? j) {
+    if (j is! Map) return defaults;
+    String field(String key, String fallback, bool Function(String) valid) {
+      final v = j[key]?.toString().trim() ?? '';
+      return valid(v) ? v : fallback;
+    }
+
+    return Fragment(
+      packets: field('packets', defaults.packets, validPackets),
+      length: field('length', defaults.length, validRange),
+      interval: field('interval', defaults.interval, validRange),
+    );
+  }
+
+  /// "N" or "N-M" with N ≤ M.
+  static bool validRange(String v) {
+    final m = RegExp(r'^(\d{1,5})(?:-(\d{1,5}))?$').firstMatch(v.trim());
+    if (m == null) return false;
+    final a = int.parse(m[1]!);
+    final b = m[2] == null ? a : int.parse(m[2]!);
+    return a <= b;
+  }
+
+  static bool validPackets(String v) => v.trim() == 'tlshello' || (validRange(v) && !v.trim().startsWith('0'));
+
+  @override
+  bool operator ==(Object other) =>
+      other is Fragment && other.packets == packets && other.length == length && other.interval == interval;
+
+  @override
+  int get hashCode => Object.hash(packets, length, interval);
+}
+
 /// A DNS server: DNS over HTTPS through the tunnel, and its plain IP for the parts of the system
 /// that need one (the VPN's announced resolver, the core's own lookups).
 class DnsChoice {
@@ -117,6 +167,8 @@ class OrbitSettings {
     this.pingMode = PingMode.normal,
     this.pingTimeout = 5,
     this.pingUrl = defaultPingUrl,
+    this.fragmentSettings = Fragment.defaults,
+    this.subscriptionRouting = true,
   });
 
   final RoutingMode routing;
@@ -145,6 +197,15 @@ class OrbitSettings {
   final int pingTimeout;
   final String pingUrl;
 
+  /// How fragmentation cuts packets when [fragment] is on.
+  final Fragment fragmentSettings;
+
+  /// Use the routing and DNS a server's Xray JSON brings, instead of [routing], where it has them.
+  final bool subscriptionRouting;
+
+  /// The fragmentation to apply, or null when it is off.
+  Fragment? get fragmentOptions => fragment ? fragmentSettings : null;
+
   DnsChoice get dnsChoice => DnsChoice.byId(dns);
 
   OrbitSettings copyWith({
@@ -164,6 +225,8 @@ class OrbitSettings {
     PingMode? pingMode,
     int? pingTimeout,
     String? pingUrl,
+    Fragment? fragmentSettings,
+    bool? subscriptionRouting,
   }) => OrbitSettings(
     routing: routing ?? this.routing,
     dns: dns ?? this.dns,
@@ -180,6 +243,8 @@ class OrbitSettings {
     pingMode: pingMode ?? this.pingMode,
     pingTimeout: pingTimeout ?? this.pingTimeout,
     pingUrl: pingUrl ?? this.pingUrl,
+    fragmentSettings: fragmentSettings ?? this.fragmentSettings,
+    subscriptionRouting: subscriptionRouting ?? this.subscriptionRouting,
   );
 
   Map<String, dynamic> toJson() => {
@@ -198,6 +263,8 @@ class OrbitSettings {
     'pingMode': pingMode.id,
     'pingTimeout': pingTimeout,
     'pingUrl': pingUrl,
+    'fragmentSettings': fragmentSettings.toJson(),
+    'subscriptionRouting': subscriptionRouting,
   };
 
   factory OrbitSettings.fromJson(Map<String, dynamic> j) => OrbitSettings(
@@ -216,6 +283,8 @@ class OrbitSettings {
     pingMode: PingMode.values.where((m) => m.id == j['pingMode']).firstOrNull ?? PingMode.normal,
     pingTimeout: ((j['pingTimeout'] as num?)?.toInt() ?? 5).clamp(5, 15),
     pingUrl: j['pingUrl'] as String? ?? defaultPingUrl,
+    fragmentSettings: Fragment.fromJson(j['fragmentSettings']),
+    subscriptionRouting: j['subscriptionRouting'] as bool? ?? true,
   );
 
   static const _key = 'orbit_settings';

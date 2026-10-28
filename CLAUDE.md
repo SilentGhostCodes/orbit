@@ -13,11 +13,11 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
 - Versions: raise `version:` in pubspec.yaml with every change the user will see (minor for features,
   patch for fixes; the `+N` part is replaced by CI's run number). About shows version and build.
 
-## Planned (start only after the user sends their design edits from design/Orbit_дизайн.pdf)
-1. Apply the user's design edits.
-2. Subscription routing, like Happ/v2RayTun but switchable: a settings toggle "Роутинг подписки", on by
-   default. When on, the server's own `routing`/`dns` from Xray JSON are used (and Orbit's routing /
-   per-app split is not applied, so nothing conflicts). Turning it off shows a warning: the
-   subscription's routing will be off and some services may complain about the VPN again. Needs
-   geoip.dat/geosite.dat bundled (e.g. runetfreedom lists, fetched in CI); ask the user for their
-   `routing` block to check every geosite:/geoip: it names is covered.
+- Subscription routing (on by default): a server's `routing`/`dns` from Xray JSON replace Orbit's
+  routing; rules naming geo lists the APK lacks are dropped (`GeoCodes`), and the service falls back to
+  `fallback.json` (Orbit's routing) if Xray refuses the panel's config. Geo lists: runetfreedom,
+  trimmed in CI by `core/geotrim` per `core/geo/*.rules` into `assets/xray/` (the .dat files are not
+  committed; the code manifests are).
+
+## Planned
+- Apply the user's design edits once they send them (from design/Orbit_дизайн.pdf).

@@ -7,6 +7,7 @@ import 'package:orbit/theme/orbit_theme.dart';
 import 'package:orbit/ui/about_page.dart';
 import 'package:orbit/ui/appearance_page.dart';
 import 'package:orbit/ui/apps_page.dart';
+import 'package:orbit/ui/fragment_page.dart';
 import 'package:orbit/ui/logs_page.dart';
 import 'package:orbit/ui/ping_settings_page.dart';
 import 'package:orbit/widgets/orbit_widgets.dart';
@@ -19,6 +20,11 @@ class SettingsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final s = ref.watch(settingsProvider);
     final notifier = ref.read(settingsProvider.notifier);
+    // whether the panel's rules are what routes right now
+    final panelRouting =
+        s.subscriptionRouting && (ref.watch(activeSubscriptionProvider)?.servers.any((x) => x.routing != null) ?? false);
+    final panelDns =
+        panelRouting && (ref.watch(activeSubscriptionProvider)?.servers.any((x) => x.dns != null) ?? false);
 
     return Scaffold(
       body: SafeArea(
@@ -27,8 +33,18 @@ class SettingsPage extends ConsumerWidget {
           children: [
             const Text('Настройки', style: OrbitText.title),
             const SectionLabel('Подключение'),
+            OrbitSwitchTile(
+              title: 'Роутинг подписки',
+              subtitle: 'Правила и DNS из Xray JSON подписки',
+              value: s.subscriptionRouting,
+              onChanged: (v) async {
+                if (!v && !await _confirmRoutingOff(context)) return;
+                await notifier.change((s) => s.copyWith(subscriptionRouting: v), reconnect: true);
+              },
+            ),
             OrbitTile(
               title: 'Маршрутизация',
+              subtitle: panelRouting ? 'Сейчас действуют правила подписки' : null,
               value: s.routing == RoutingMode.bypassRu ? 'Обход RU' : 'Всё через VPN',
               onTap: () => pick<RoutingMode>(
                 context,
@@ -71,6 +87,7 @@ class SettingsPage extends ConsumerWidget {
             const SectionLabel('Сеть'),
             OrbitTile(
               title: 'DNS',
+              subtitle: panelDns ? 'Сейчас действует DNS подписки' : null,
               value: s.dnsChoice.label,
               onTap: () => pick<String>(
                 context,
@@ -80,11 +97,11 @@ class SettingsPage extends ConsumerWidget {
                 onSelected: (v) => notifier.change((s) => s.copyWith(dns: v), reconnect: true),
               ),
             ),
-            OrbitSwitchTile(
+            OrbitTile(
               title: 'Фрагментация TLS',
               subtitle: 'Помогает, если сервер режет DPI',
-              value: s.fragment,
-              onChanged: (v) => notifier.change((s) => s.copyWith(fragment: v), reconnect: true),
+              value: s.fragment ? 'Вкл' : 'Выкл',
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const FragmentPage())),
             ),
             OrbitTile(
               title: 'Пинг',
@@ -112,6 +129,29 @@ class SettingsPage extends ConsumerWidget {
       ),
     );
   }
+
+  static Future<bool> _confirmRoutingOff(BuildContext context) async =>
+      await showDialog<bool>(
+        context: context,
+        builder: (context) => AlertDialog(
+          title: const Text('Отключить роутинг подписки?', style: OrbitText.sheetTitle),
+          content: Text(
+            'Правила, которые прислала подписка, перестанут действовать — Orbit будет направлять трафик '
+            'по своей настройке «Маршрутизация». Некоторые сервисы снова могут жаловаться на VPN или '
+            'открываться медленнее.',
+            style: OrbitText.body.copyWith(color: OrbitColors.textSecondary, height: 1.4),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.of(context).pop(false), child: const Text('Оставить')),
+            TextButton(
+              onPressed: () => Navigator.of(context).pop(true),
+              style: TextButton.styleFrom(foregroundColor: OrbitColors.danger),
+              child: const Text('Отключить'),
+            ),
+          ],
+        ),
+      ) ??
+      false;
 
   static Future<void> _explainKillSwitch(BuildContext context, bool enabled) => showDialog<void>(
     context: context,

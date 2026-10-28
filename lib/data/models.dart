@@ -3,10 +3,15 @@ import 'package:orbit/util/server_meta.dart';
 /// One server: the Xray outbounds that reach it, the one doing so first and tagged "proxy".
 /// Anything after it (a fragment chain, the panel's own "direct") stays as the panel wrote it.
 class Server {
-  const Server({required this.name, required this.outbounds});
+  const Server({required this.name, required this.outbounds, this.routing, this.dns});
 
   final String name;
   final List<Map<String, dynamic>> outbounds;
+
+  /// The `routing` and `dns` of the server's Xray JSON, if the panel sent them; used when
+  /// [OrbitSettings.subscriptionRouting] is on.
+  final Map<String, dynamic>? routing;
+  final Map<String, dynamic>? dns;
 
   Map<String, dynamic> get proxy => outbounds.first;
 
@@ -51,11 +56,18 @@ class Server {
   /// Same server across subscription updates, as far as the list is concerned.
   String get key => name;
 
-  Map<String, dynamic> toJson() => {'name': name, 'outbounds': outbounds};
+  Map<String, dynamic> toJson() => {
+    'name': name,
+    'outbounds': outbounds,
+    if (routing != null) 'routing': routing,
+    if (dns != null) 'dns': dns,
+  };
 
   factory Server.fromJson(Map<String, dynamic> json) => Server(
     name: json['name'] as String,
     outbounds: (json['outbounds'] as List).cast<Map<String, dynamic>>(),
+    routing: json['routing'] as Map<String, dynamic>?,
+    dns: json['dns'] as Map<String, dynamic>?,
   );
 }
 

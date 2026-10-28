@@ -47,8 +47,9 @@ abstract class Native {
   static Future<bool> prepareVpn() async => await _channel.invokeMethod<bool>('prepareVpn') ?? false;
 
   /// Starts (or restarts with a new config) the tunnel.
-  static Future<void> start({required String xrayConfig, required Map<String, dynamic> vpn}) =>
-      _channel.invokeMethod('start', {'config': xrayConfig, 'vpn': jsonEncode(vpn)});
+  /// [fallback] is run instead if [xrayConfig] fails to start (the subscription's routing).
+  static Future<void> start({required String xrayConfig, required Map<String, dynamic> vpn, String? fallback}) =>
+      _channel.invokeMethod('start', {'config': xrayConfig, 'vpn': jsonEncode(vpn), 'fallback': fallback});
 
   static Future<void> stop() => _channel.invokeMethod('stop');
 

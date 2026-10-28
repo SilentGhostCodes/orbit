@@ -19,6 +19,7 @@ class Boot {
     required this.subscriptions,
     required this.ruCidrs,
     required this.logPath,
+    this.geo = const GeoCodes(),
   });
 
   /// From pubspec.yaml's `version`, raised with every release.
@@ -30,6 +31,9 @@ class Boot {
   final List<Subscription> subscriptions;
   final List<String> ruCidrs;
   final String logPath;
+
+  /// The geo lists shipped in the APK, for the subscription's routing.
+  final GeoCodes geo;
 
   String get userAgent => 'Orbit/$version (android)';
 }
@@ -273,7 +277,7 @@ class PingsNotifier extends Notifier<Pings> {
       List<int?> delays;
       try {
         delays = await LibXray.ping(
-          [for (final s in batch) pingConfig(s, fragment: settings.fragment)],
+          [for (final s in batch) pingConfig(s, fragment: settings.fragmentOptions)],
           timeoutSeconds: settings.pingTimeout,
           url: settings.pingUrl,
           method: settings.pingType == PingType.proxyHead ? 'HEAD' : 'GET',
@@ -362,15 +366,29 @@ class ConnectionController extends Notifier<ConnectionUi> {
       state = const ConnectionUi();
       final boot = ref.read(bootProvider);
       final settings = ref.read(settingsProvider);
+      final notes = <String>[];
       final config = buildXrayConfig(
         server: server,
         settings: settings,
         logPath: boot.logPath,
         ruCidrs: boot.ruCidrs,
+        geo: boot.geo,
+        notes: notes,
       );
+      final panelRouting = settings.subscriptionRouting && server.routing != null;
       await Native.start(
         xrayConfig: jsonEncode(config),
-        vpn: vpnOptions(settings, serverName: server.name),
+        vpn: vpnOptions(settings, serverName: server.name, notes: notes),
+        fallback: panelRouting
+            ? jsonEncode(
+                buildXrayConfig(
+                  server: server,
+                  settings: settings.copyWith(subscriptionRouting: false),
+                  logPath: boot.logPath,
+                  ruCidrs: boot.ruCidrs,
+                ),
+              )
+            : null,
       );
     } on Object catch (e) {
       state = ConnectionUi(error: e.toString());

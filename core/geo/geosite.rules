@@ -1,0 +1,4 @@
+# runetfreedom/russia-v2ray-rules-dat geosite.dat, trimmed by core/geotrim in CI.
+# The two giants: every blocked domain, 30+ MB each. ru-blocked (1.5 MB) covers what matters.
+-ru-blocked-all
+-antifilter-download

@@ -32,6 +32,8 @@ Future<void> main() async {
     getApplicationSupportDirectory(),
     rootBundle.loadString('assets/geo/ru4.txt'),
     rootBundle.loadString('assets/geo/ru6.txt'),
+    rootBundle.loadString('assets/xray/geosite.txt'),
+    rootBundle.loadString('assets/xray/geoip.txt'),
   ]);
   final boot = Boot(
     version: (results[0] as PackageInfo).version,
@@ -40,6 +42,7 @@ Future<void> main() async {
     subscriptions: results[2] as List<Subscription>,
     logPath: '${(results[3] as Directory).path}/xray.log',
     ruCidrs: [...parseCidrList(results[4] as String), ...parseCidrList(results[5] as String)],
+    geo: GeoCodes.parse(results[6] as String, results[7] as String),
   );
 
   runApp(ProviderScope(overrides: [bootProvider.overrideWithValue(boot)], child: const OrbitApp()));

@@ -12,7 +12,7 @@ permissions:
 
 jobs:
   # Xray-core for Android: XTLS's libXray at core/LIBXRAY_COMMIT plus core/libxray, built with gomobile.
-  # Cached until that file changes.
+  # Cached until those change.
   core:
     runs-on: ubuntu-latest
     steps:
@@ -23,7 +23,7 @@ jobs:
         uses: actions/cache/restore@v5
         with:
           path: core-out
-          key: libxray-android-${{ hashFiles('core/**') }}
+          key: libxray-android-${{ hashFiles('core/LIBXRAY_COMMIT', 'core/libxray/**') }}
 
       - name: Check out libXray
         if: steps.cache.outputs.cache-hit != 'true'
@@ -76,7 +76,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         with:
           path: core-out
-          key: libxray-android-${{ hashFiles('core/**') }}
+          key: libxray-android-${{ hashFiles('core/LIBXRAY_COMMIT', 'core/libxray/**') }}
 
       - uses: actions/upload-artifact@v5
         with:
@@ -117,6 +117,24 @@ jobs:
         with:
           name: libxray-android
           path: android/app/libs
+
+      # Fresh geo lists for the subscription's routing, trimmed to what fits in an APK.
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: core/geotrim/go.mod
+          cache-dependency-path: core/geotrim/go.sum
+
+      - name: Geo lists
+        run: |
+          set -e
+          mkdir -p geo-src
+          base=https://github.com/runetfreedom/russia-v2ray-rules-dat/releases/latest/download
+          for f in geosite geoip; do
+            curl -fsSL --retry 4 -o "geo-src/$f.dat" "$base/$f.dat"
+            (cd core/geotrim && go run . -in "../../geo-src/$f.dat" -out "../../assets/xray/$f.dat" \
+              -rules "../geo/$f.rules" -manifest "../../assets/xray/$f.txt")
+          done
+          ls -la assets/xray
 
       - name: Analyze and test
         run: |
