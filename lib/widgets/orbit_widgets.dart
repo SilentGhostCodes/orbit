@@ -6,14 +6,16 @@ import 'package:orbit/util/server_meta.dart';
 
 /// The Orbit mark: a ring with a planet in the middle and a moon on the ring.
 class OrbitLogo extends StatelessWidget {
-  const OrbitLogo({super.key, this.size = 18, this.color = OrbitColors.accent});
+  const OrbitLogo({super.key, this.size = 18, this.color});
 
   final double size;
-  final Color color;
+
+  /// The accent when null.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) =>
-      CustomPaint(size: Size.square(size), painter: _OrbitLogoPainter(color));
+      CustomPaint(size: Size.square(size), painter: _OrbitLogoPainter(color ?? OrbitColors.accent));
 }
 
 class _OrbitLogoPainter extends CustomPainter {
@@ -110,7 +112,7 @@ class OrbitPrimaryButton extends StatelessWidget {
       ),
       onPressed: loading ? null : onPressed,
       child: loading
-          ? const SizedBox.square(
+          ? SizedBox.square(
               dimension: 20,
               child: CircularProgressIndicator(strokeWidth: 2, color: OrbitColors.onAccent),
             )

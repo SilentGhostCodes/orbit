@@ -3,6 +3,7 @@ import 'dart:io';
 
 import 'package:http/http.dart' as http;
 import 'package:orbit/core/libxray.dart';
+import 'package:orbit/data/device.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/subscription_parser.dart';
 import 'package:path_provider/path_provider.dart';
@@ -18,10 +19,13 @@ class SubscriptionException implements Exception {
 
 /// Downloads, parses and stores subscriptions.
 class SubscriptionRepo {
-  SubscriptionRepo(this.userAgent);
+  SubscriptionRepo(this.userAgent, {this.device});
 
   /// Starts with "Orbit/" so a panel rule (Remnawave: `^(?:…|orbit)` → XRAY_JSON) can pick the format.
   final String userAgent;
+
+  /// Sent as Remnawave's device headers (HWID).
+  final DeviceInfo? device;
 
   static Future<File> _file() async => File('${(await getApplicationSupportDirectory()).path}/subscriptions.json');
 
@@ -63,7 +67,7 @@ class SubscriptionRepo {
     final http.Response response;
     try {
       response = await http
-          .get(uri, headers: {'User-Agent': userAgent, 'Accept': '*/*'})
+          .get(uri, headers: {'User-Agent': userAgent, 'Accept': '*/*', ...?device?.headers})
           .timeout(const Duration(seconds: 25));
     } on Object catch (e) {
       throw SubscriptionException('Не удалось загрузить подписку: $e');

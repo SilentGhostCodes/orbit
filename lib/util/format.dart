@@ -9,6 +9,9 @@ String plural(int n, String one, String few, String many) {
   return many;
 }
 
+/// How often a subscription updates: "Каждый час", "Каждые 6 часов".
+String everyHoursLabel(int n) => n == 1 ? 'Каждый час' : 'Каждые $n ${plural(n, 'час', 'часа', 'часов')}';
+
 String daysLabel(int n) => '$n ${plural(n, 'день', 'дня', 'дней')}';
 
 String serversLabel(int n) => '$n ${plural(n, 'сервер', 'сервера', 'серверов')}';

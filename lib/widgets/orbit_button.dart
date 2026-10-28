@@ -155,6 +155,9 @@ class _OrbitPainter extends CustomPainter {
     required this.busy,
   });
 
+  /// The accent when painted, so a new one repaints.
+  final Color accent = OrbitColors.accent;
+
   /// The button's radius.
   final double radius;
   final double appear;
@@ -239,5 +242,5 @@ class _OrbitPainter extends CustomPainter {
 
   @override
   bool shouldRepaint(_OrbitPainter old) =>
-      old.appear != appear || old.orbitTurn != orbitTurn || old.lit != lit || old.busy != busy;
+      old.appear != appear || old.orbitTurn != orbitTurn || old.lit != lit || old.busy != busy || old.accent != accent;
 }

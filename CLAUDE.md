@@ -19,5 +19,12 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   trimmed in CI by `core/geotrim` per `core/geo/*.rules` into `assets/xray/` (the .dat files are not
   committed; the code manifests are).
 
+- The accent colour is user-picked: `OrbitColors.accent` is mutable, set by `OrbitApp` from settings,
+  which then rebuilds every element. Never use it in a `const` expression.
+- Subscription requests carry Remnawave's HWID headers (`DeviceInfo`): a random id kept in prefs, so it
+  changes when the app is removed (builds are still signed with throwaway keys).
+
 ## Planned
 - Apply the user's design edits once they send them (from design/Orbit_дизайн.pdf).
+- Happ encrypted subscriptions (happ://crypt…): to be discussed with the user first.
+- A permanent signing key, before the app goes to other users (the user postponed it).

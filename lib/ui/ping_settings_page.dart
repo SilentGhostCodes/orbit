@@ -131,7 +131,7 @@ class _Choice extends StatelessWidget {
     divider: divider,
     onTap: onTap,
     trailing: selected
-        ? const Icon(Icons.check_rounded, color: OrbitColors.accent, size: 20)
+        ? Icon(Icons.check_rounded, color: OrbitColors.accent, size: 20)
         : const SizedBox(width: 20),
   );
 }

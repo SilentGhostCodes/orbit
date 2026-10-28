@@ -6,6 +6,7 @@ import 'package:orbit/core/direct_ping.dart';
 import 'package:orbit/core/libxray.dart';
 import 'package:orbit/core/native.dart';
 import 'package:orbit/core/xray_config.dart';
+import 'package:orbit/data/device.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/settings.dart';
 import 'package:orbit/data/subscription_repo.dart';
@@ -20,6 +21,7 @@ class Boot {
     required this.ruCidrs,
     required this.logPath,
     this.geo = const GeoCodes(),
+    this.device,
   });
 
   /// From pubspec.yaml's `version`, raised with every release.
@@ -34,6 +36,9 @@ class Boot {
 
   /// The geo lists shipped in the APK, for the subscription's routing.
   final GeoCodes geo;
+
+  /// HWID and the phone, sent with subscription requests.
+  final DeviceInfo? device;
 
   String get userAgent => 'Orbit/$version (android)';
 }
@@ -84,7 +89,7 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
   @override
   List<Subscription> build() => ref.read(bootProvider).subscriptions;
 
-  SubscriptionRepo get _repo => SubscriptionRepo(ref.read(bootProvider).userAgent);
+  SubscriptionRepo get _repo => SubscriptionRepo(ref.read(bootProvider).userAgent, device: ref.read(bootProvider).device);
 
   Future<void> _store(List<Subscription> next) async {
     state = next;
@@ -120,7 +125,7 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
         total: r.info.total,
         expire: r.info.expire,
         autoUpdate: autoUpdate,
-        updateHours: r.info.updateHours ?? updateHours,
+        updateHours: updateHours,
       );
     } else {
       sub = Subscription(
@@ -196,6 +201,9 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
 
   Future<void> setAutoUpdate(String id, bool on) async =>
       _store([for (final s in state) s.id == id ? s.copyWith(autoUpdate: on) : s]);
+
+  Future<void> setUpdateHours(String id, int hours) async =>
+      _store([for (final s in state) s.id == id ? s.copyWith(updateHours: hours) : s]);
 }
 
 final activeSubscriptionProvider = Provider<Subscription?>((ref) {

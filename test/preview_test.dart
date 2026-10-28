@@ -146,6 +146,16 @@ void main() {
   testWidgets('home unlimited', (t) => _shoot(t, 'home_unlimited', const HomePage(), unlimited: true));
   testWidgets('settings', (t) => _shoot(t, 'settings', const SettingsPage()));
   testWidgets('appearance', (t) => _shoot(t, 'appearance', const AppearancePage()));
+  testWidgets('home on, lavender', (t) async {
+    OrbitColors.accent = const Color(0xFF9B8CFF);
+    addTearDown(() => OrbitColors.accent = OrbitColors.defaultAccent);
+    await _shoot(
+      t,
+      'home_on_lavender',
+      const HomePage(),
+      status: VpnStatus(VpnState.connected, since: DateTime.now(), server: '🇳🇱 Амстердам'),
+    );
+  });
   testWidgets('fragment', (t) => _shoot(t, 'fragment', const FragmentPage()));
   testWidgets('ping settings', (t) => _shoot(t, 'ping_settings', const PingSettingsPage()));
 }

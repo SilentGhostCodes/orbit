@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -32,15 +34,23 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
     (icon: Icons.tune_rounded, selected: Icons.tune_rounded, label: 'Настройки'),
   ];
 
+  /// Subscriptions due for an update while the app stays open (intervals go down to an hour).
+  Timer? _updates;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _onLaunch());
+    _updates = Timer.periodic(
+      const Duration(minutes: 10),
+      (_) => ref.read(subscriptionsProvider.notifier).refreshAll(onlyDue: true),
+    );
   }
 
   @override
   void dispose() {
+    _updates?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }

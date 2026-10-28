@@ -205,7 +205,7 @@ Future<void> pick<T>(
               subtitle: entry.value.$2,
               divider: i != options.length - 1,
               trailing: entry.key == current
-                  ? const Icon(Icons.check_rounded, color: OrbitColors.accent, size: 20)
+                  ? Icon(Icons.check_rounded, color: OrbitColors.accent, size: 20)
                   : null,
               onTap: () {
                 onSelected(entry.key);

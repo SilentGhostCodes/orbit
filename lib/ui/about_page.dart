@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbit/core/libxray.dart';
 import 'package:orbit/state/providers.dart';
@@ -33,7 +34,26 @@ class AboutPage extends ConsumerWidget {
           if (build != null) OrbitTile(title: 'Сборка', value: build),
           OrbitTile(title: 'Ядро', value: xray == null ? 'Xray-core' : 'Xray-core $xray'),
           const OrbitTile(title: 'Протоколы', value: 'VLESS, VMess, Trojan, Shadowsocks, Hysteria2'),
-          const OrbitTile(title: 'Подписки', value: 'Xray JSON, ссылки, base64', divider: false),
+          const OrbitTile(title: 'Подписки', value: 'Xray JSON, ссылки, base64'),
+          if (boot.device != null) ...[
+            OrbitTile(
+              title: 'Устройство',
+              subtitle: 'Android ${boot.device!.osVersion}'.trim(),
+              value: boot.device!.model.isEmpty ? null : boot.device!.model,
+            ),
+            OrbitTile(
+              title: 'HWID',
+              subtitle: boot.device!.hwid,
+              divider: false,
+              trailing: const Icon(Icons.copy_rounded, size: 18, color: OrbitColors.textSecondary),
+              onTap: () async {
+                await Clipboard.setData(ClipboardData(text: boot.device!.hwid));
+                if (context.mounted) {
+                  ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('HWID скопирован')));
+                }
+              },
+            ),
+          ],
         ],
       ),
     );

@@ -163,6 +163,7 @@ class OrbitSettings {
     this.activeSubscription,
     this.selectedServers = const {},
     this.buttonStyle = PowerButtonStyle.orbit,
+    this.accent = 0xFF3DD6A0,
     this.pingType = PingType.proxyGet,
     this.pingMode = PingMode.normal,
     this.pingTimeout = 5,
@@ -187,6 +188,9 @@ class OrbitSettings {
   final Map<String, String> selectedServers;
 
   final PowerButtonStyle buttonStyle;
+
+  /// The accent colour, ARGB, picked under Оформление.
+  final int accent;
 
   final PingType pingType;
 
@@ -221,6 +225,7 @@ class OrbitSettings {
     bool clearActive = false,
     Map<String, String>? selectedServers,
     PowerButtonStyle? buttonStyle,
+    int? accent,
     PingType? pingType,
     PingMode? pingMode,
     int? pingTimeout,
@@ -239,6 +244,7 @@ class OrbitSettings {
     activeSubscription: clearActive ? null : (activeSubscription ?? this.activeSubscription),
     selectedServers: selectedServers ?? this.selectedServers,
     buttonStyle: buttonStyle ?? this.buttonStyle,
+    accent: accent ?? this.accent,
     pingType: pingType ?? this.pingType,
     pingMode: pingMode ?? this.pingMode,
     pingTimeout: pingTimeout ?? this.pingTimeout,
@@ -259,6 +265,7 @@ class OrbitSettings {
     'activeSubscription': activeSubscription,
     'selectedServers': selectedServers,
     'buttonStyle': buttonStyle.name,
+    'accent': accent,
     'pingType': pingType.name,
     'pingMode': pingMode.id,
     'pingTimeout': pingTimeout,
@@ -279,6 +286,7 @@ class OrbitSettings {
     activeSubscription: j['activeSubscription'] as String?,
     selectedServers: (j['selectedServers'] as Map? ?? const {}).cast<String, String>(),
     buttonStyle: PowerButtonStyle.values.asNameMap()[j['buttonStyle']] ?? PowerButtonStyle.orbit,
+    accent: (j['accent'] as num?)?.toInt() ?? 0xFF3DD6A0,
     pingType: PingType.values.asNameMap()[j['pingType']] ?? PingType.proxyGet,
     pingMode: PingMode.values.where((m) => m.id == j['pingMode']).firstOrNull ?? PingMode.normal,
     pingTimeout: ((j['pingTimeout'] as num?)?.toInt() ?? 5).clamp(5, 15),

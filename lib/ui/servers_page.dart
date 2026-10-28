@@ -183,7 +183,7 @@ class _ServerTile extends StatelessWidget {
           SizedBox(
             width: 30,
             child: selected
-                ? const Align(
+                ? Align(
                     alignment: Alignment.centerRight,
                     child: Icon(Icons.check_rounded, size: 18, color: OrbitColors.accent),
                   )

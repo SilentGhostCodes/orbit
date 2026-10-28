@@ -266,7 +266,7 @@ class _Connected extends ConsumerWidget {
     final elapsed = since == null ? Duration.zero : now.difference(since);
     return Column(
       children: [
-        const Text(
+        Text(
           'Подключено',
           style: TextStyle(fontSize: 16, fontWeight: FontWeight.w700, color: OrbitColors.accent),
         ),

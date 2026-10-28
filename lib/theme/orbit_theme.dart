@@ -1,10 +1,19 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 
-/// Orbit palette, taken from the design: dark graphite surfaces and a single mint accent.
+/// Orbit palette, taken from the design: dark graphite surfaces and a single accent, mint unless
+/// the user picked another under Оформление.
 abstract class OrbitColors {
-  static const accent = Color(0xFF3DD6A0);
-  static const onAccent = Color(0xFF0E2A20);
+  static const defaultAccent = Color(0xFF3DD6A0);
+
+  /// Set by [OrbitApp] from the settings before the tree builds.
+  static Color accent = defaultAccent;
+
+  /// Text and icons on the accent: a deep shade of it.
+  static Color get onAccent {
+    final hsl = HSLColor.fromColor(accent);
+    return hsl.withLightness(.11).withSaturation(hsl.saturation * .6).toColor();
+  }
 
   static const background = Color(0xFF1B1C1F);
   static const surface = Color(0xFF232427);
@@ -73,7 +82,7 @@ abstract class OrbitText {
 }
 
 ThemeData orbitTheme() {
-  const scheme = ColorScheme.dark(
+  final scheme = ColorScheme.dark(
     primary: OrbitColors.accent,
     onPrimary: OrbitColors.onAccent,
     primaryContainer: OrbitColors.surfaceHigh,
@@ -148,10 +157,27 @@ ThemeData orbitTheme() {
       contentTextStyle: OrbitText.body,
       behavior: SnackBarBehavior.floating,
     ),
-    progressIndicatorTheme: const ProgressIndicatorThemeData(color: OrbitColors.accent),
-    textSelectionTheme: const TextSelectionThemeData(
+    progressIndicatorTheme: ProgressIndicatorThemeData(color: OrbitColors.accent),
+    textSelectionTheme: TextSelectionThemeData(
       cursorColor: OrbitColors.accent,
       selectionHandleColor: OrbitColors.accent,
     ),
   );
 }
+
+/// The accents offered under Оформление; any other hue can be picked on a slider.
+const accentPresets = [
+  (OrbitColors.defaultAccent, 'Мята'),
+  (Color(0xFF22D3EE), 'Бирюза'),
+  (Color(0xFF4DA3FF), 'Небо'),
+  (Color(0xFF9B8CFF), 'Лаванда'),
+  (Color(0xFFFF5FA2), 'Фуксия'),
+  (Color(0xFFFF6B6B), 'Красный'),
+  (Color(0xFFFF8A4C), 'Коралл'),
+  (Color(0xFFFFC145), 'Янтарь'),
+  (Color(0xFFA3E635), 'Лайм'),
+  (Color(0xFFE6E6E6), 'Белый'),
+];
+
+/// A bright accent of [hue], as the custom slider makes them.
+Color accentOfHue(double hue) => HSLColor.fromAHSL(1, hue, .78, .62).toColor();

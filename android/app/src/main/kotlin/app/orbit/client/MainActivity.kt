@@ -109,6 +109,12 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
+                "deviceInfo" -> {
+                    val maker = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
+                    val model = if (Build.MODEL.startsWith(Build.MANUFACTURER, ignoreCase = true)) Build.MODEL else "$maker ${Build.MODEL}"
+                    result.success(mapOf("osVersion" to Build.VERSION.RELEASE, "model" to model))
+                }
+
                 "openVpnSettings" -> {
                     runCatching { startActivity(Intent(Settings.ACTION_VPN_SETTINGS)) }
                     result.success(null)

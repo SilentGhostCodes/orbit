@@ -7,6 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:orbit/core/native.dart';
+import 'package:orbit/data/device.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/settings.dart';
 import 'package:orbit/state/providers.dart';
@@ -87,7 +88,7 @@ Future<void> _shoot(
   tester.view.devicePixelRatio = 3;
   addTearDown(tester.view.reset);
   final boot = Boot(
-    version: '1.3.0',
+    version: '1.5.0',
     build: '16',
     settings: (settings ?? const OrbitSettings()).copyWith(
       activeSubscription: active,
@@ -96,6 +97,7 @@ Future<void> _shoot(
     subscriptions: subs ?? [_main, _unlimited],
     ruCidrs: const [],
     logPath: '/tmp/orbit-design/xray.log',
+    device: const DeviceInfo(hwid: '3f9c2a7e1b5d48c6a0e2f71b9d3c5a84', osVersion: '15', model: 'Samsung SM-S918B'),
   );
   final pings = Pings(
     delays: {

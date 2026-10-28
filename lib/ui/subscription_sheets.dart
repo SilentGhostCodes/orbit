@@ -177,8 +177,8 @@ class _SubscriptionTile extends ConsumerWidget {
                 child: SizedBox.square(dimension: 16, child: CircularProgressIndicator(strokeWidth: 2)),
               )
             else if (active)
-              const Padding(
-                padding: EdgeInsets.symmetric(horizontal: 8),
+              Padding(
+                padding: const EdgeInsets.symmetric(horizontal: 8),
                 child: Icon(Icons.check_rounded, color: OrbitColors.accent, size: 20),
               ),
             PopupMenuButton<String>(
@@ -198,6 +198,8 @@ class _SubscriptionTile extends ConsumerWidget {
                     if (context.mounted) _toast(context, 'Ссылка скопирована');
                   case 'auto':
                     await notifier.setAutoUpdate(sub.id, !sub.autoUpdate);
+                  case 'hours':
+                    if (context.mounted) await _sheet(context, _UpdateHoursSheet(sub: sub));
                   case 'delete':
                     final ok = await showDialog<bool>(
                       context: context,
@@ -221,6 +223,8 @@ class _SubscriptionTile extends ConsumerWidget {
                 if (sub.url != null) const PopupMenuItem(value: 'copy', child: Text('Скопировать ссылку')),
                 if (sub.url != null)
                   CheckedPopupMenuItem(value: 'auto', checked: sub.autoUpdate, child: const Text('Автообновление')),
+                if (sub.url != null && sub.autoUpdate)
+                  PopupMenuItem(value: 'hours', child: Text('Частота: ${everyHoursLabel(sub.updateHours).toLowerCase()}')),
                 const PopupMenuItem(
                   value: 'delete',
                   child: Text('Удалить', style: TextStyle(color: OrbitColors.danger)),
@@ -247,6 +251,7 @@ class AddSubscriptionSheet extends ConsumerStatefulWidget {
 class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   late final _controller = TextEditingController(text: widget.initial);
   bool _autoUpdate = true;
+  int _updateHours = 12;
   bool _adding = false;
   String? _error;
 
@@ -267,7 +272,7 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
     if (text.isEmpty || _adding) return;
     setState(() => _adding = true);
     try {
-      final sub = await ref.read(subscriptionsProvider.notifier).add(text, autoUpdate: _autoUpdate);
+      final sub = await ref.read(subscriptionsProvider.notifier).add(text, autoUpdate: _autoUpdate, updateHours: _updateHours);
       if (!mounted) return;
       final messenger = ScaffoldMessenger.maybeOf(context);
       Navigator.of(context).pop();
@@ -355,10 +360,17 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
           const SizedBox(height: 14),
           OrbitSwitchTile(
             title: 'Автообновление',
-            subtitle: 'Каждые 12 часов',
+            subtitle: _autoUpdate ? everyHoursLabel(_updateHours) : 'Выключено',
             value: _autoUpdate,
             divider: false,
             onChanged: (v) => setState(() => _autoUpdate = v),
+          ),
+          AnimatedSize(
+            duration: const Duration(milliseconds: 200),
+            alignment: Alignment.topCenter,
+            child: _autoUpdate
+                ? _HoursSlider(hours: _updateHours, onChanged: (h) => setState(() => _updateHours = h))
+                : const SizedBox(width: double.infinity),
           ),
           const SizedBox(height: 14),
           OrbitPrimaryButton(label: 'Добавить', loading: _adding, onPressed: empty ? null : _submit),
@@ -366,4 +378,92 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
       ),
     );
   }
+}
+
+/// How often a subscription updates: 1 to 24 hours, with the hour marks under the track.
+class _HoursSlider extends StatelessWidget {
+  const _HoursSlider({required this.hours, required this.onChanged});
+
+  final int hours;
+  final ValueChanged<int> onChanged;
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.only(top: 4),
+    child: Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        SliderTheme(
+          data: SliderTheme.of(context).copyWith(
+            overlayShape: SliderComponentShape.noOverlay,
+            showValueIndicator: ShowValueIndicator.onDrag,
+          ),
+          child: Slider(
+            value: hours.toDouble(),
+            min: 1,
+            max: 24,
+            divisions: 23,
+            label: '$hours ч',
+            onChanged: (v) => onChanged(v.round()),
+          ),
+        ),
+        const SizedBox(height: 6),
+        // under the slider's track, which is inset by the thumb's radius
+        Padding(
+          padding: const EdgeInsets.symmetric(horizontal: 4),
+          child: SizedBox(
+            height: 14,
+            child: Stack(
+              children: [
+                for (final h in const [1, 6, 12, 18, 24])
+                  Align(
+                    alignment: Alignment(-1 + 2 * (h - 1) / 23, 0),
+                    child: Text('$h ч', style: OrbitText.caption.copyWith(fontSize: 11)),
+                  ),
+              ],
+            ),
+          ),
+        ),
+      ],
+    ),
+  );
+}
+
+/// The update interval of a subscription already added.
+class _UpdateHoursSheet extends ConsumerStatefulWidget {
+  const _UpdateHoursSheet({required this.sub});
+
+  final Subscription sub;
+
+  @override
+  ConsumerState<_UpdateHoursSheet> createState() => _UpdateHoursSheetState();
+}
+
+class _UpdateHoursSheetState extends ConsumerState<_UpdateHoursSheet> {
+  late int _hours = widget.sub.updateHours.clamp(1, 24);
+
+  @override
+  Widget build(BuildContext context) => Padding(
+    padding: const EdgeInsets.fromLTRB(20, 0, 20, 16),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const SheetHandle(),
+        const Text('Частота обновления', style: OrbitText.sheetTitle),
+        const SizedBox(height: 4),
+        Text('${widget.sub.name} · ${everyHoursLabel(_hours).toLowerCase()}', style: OrbitText.caption),
+        const SizedBox(height: 14),
+        _HoursSlider(hours: _hours, onChanged: (h) => setState(() => _hours = h)),
+        const SizedBox(height: 20),
+        OrbitPrimaryButton(
+          label: 'Сохранить',
+          onPressed: () async {
+            await ref.read(subscriptionsProvider.notifier).setUpdateHours(widget.sub.id, _hours);
+            if (context.mounted) Navigator.of(context).pop();
+          },
+        ),
+      ],
+    ),
+  );
 }

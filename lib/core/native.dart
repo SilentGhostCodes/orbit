@@ -90,6 +90,10 @@ abstract class Native {
     ];
   }
 
+  /// Android version and phone model, for the subscription's device headers.
+  static Future<Map<String, String>> deviceInfo() async =>
+      (await _channel.invokeMapMethod<String, String>('deviceInfo')) ?? const {};
+
   static Future<void> openVpnSettings() => _channel.invokeMethod('openVpnSettings');
 
   static Future<void> requestNotifications() => _channel.invokeMethod('requestNotifications');

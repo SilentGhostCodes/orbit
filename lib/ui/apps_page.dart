@@ -103,13 +103,13 @@ class _AppsPageState extends ConsumerState<AppsPage> {
             child: TextField(
               onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
               style: OrbitText.body,
-              decoration: const InputDecoration(
+              decoration: InputDecoration(
                 hintText: 'Поиск',
-                hintStyle: TextStyle(color: OrbitColors.textTertiary),
-                prefixIcon: Icon(Icons.search_rounded, size: 20, color: OrbitColors.textTertiary),
-                prefixIconConstraints: BoxConstraints(minWidth: 32),
-                border: UnderlineInputBorder(borderSide: BorderSide(color: OrbitColors.divider)),
-                enabledBorder: UnderlineInputBorder(borderSide: BorderSide(color: OrbitColors.divider)),
+                hintStyle: const TextStyle(color: OrbitColors.textTertiary),
+                prefixIcon: const Icon(Icons.search_rounded, size: 20, color: OrbitColors.textTertiary),
+                prefixIconConstraints: const BoxConstraints(minWidth: 32),
+                border: const UnderlineInputBorder(borderSide: BorderSide(color: OrbitColors.divider)),
+                enabledBorder: const UnderlineInputBorder(borderSide: BorderSide(color: OrbitColors.divider)),
                 focusedBorder: UnderlineInputBorder(borderSide: BorderSide(color: OrbitColors.accent)),
               ),
             ),
