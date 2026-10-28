@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/settings.dart';
+import 'package:orbit/util/format.dart';
 
 /// Addresses that never go through the tunnel.
 const privateCidrs = [
@@ -179,7 +180,8 @@ Map<String, dynamic> buildXrayConfig({
       'rules': [...ownRules, ..._panelRules(server.routing!['rules'], geo, missing)],
     };
     dns = server.dns == null ? _ownDns(settings) : _panelDns(server.dns!, geo, missing);
-    notes?.add('роутинг подписки: ${(routing['rules'] as List).length - ownRules.length} правил');
+    final count = (routing['rules'] as List).length - ownRules.length;
+    notes?.add('роутинг подписки: $count ${plural(count, 'правило', 'правила', 'правил')}');
     if (missing.isNotEmpty) notes?.add('роутинг подписки: нет списков ${missing.join(', ')}, правила с ними пропущены');
   } else {
     routing = {
