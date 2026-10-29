@@ -75,7 +75,9 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
     if (_openingLink) return; // the one being opened takes any newer link after it
     _openingLink = true;
     try {
-      for (String? link = await DeepLinks.take(); link != null && mounted; link = await DeepLinks.take()) {
+      while (true) {
+        final link = await DeepLinks.take();
+        if (link == null || !mounted) break;
         ref.read(tabProvider.notifier).go(0);
         await showAddSubscriptionSheet(context, initial: link, submit: true);
       }
