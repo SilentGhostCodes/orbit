@@ -1,7 +1,7 @@
-/// Which app Orbit introduces itself as to a subscription panel. Panels pick the format by
-/// User-Agent, and some answer an app they do not know with no servers at all (Remnawave's
-/// subscription-page JSON, `{"isFound":true,"user":…}`): those are asked again as another app.
-/// The one that worked is kept on the subscription, so refreshes go straight to it.
+/// Which app Orbit introduces itself as to a subscription panel. Plain subscription links are asked
+/// for strictly as Orbit. A subscription from a Happ or INCY link is asked for as that app first, and
+/// only if the panel answers it without servers, as the others in [retryOrder]. The app that worked
+/// is kept on the subscription, so refreshes go straight to it.
 enum PanelClient {
   /// Orbit itself; the user's own panels list "orbit" in their XRAY_JSON rule.
   orbit,
@@ -15,8 +15,8 @@ enum PanelClient {
   /// v2rayNG: nearly every panel knows it and answers with share links.
   v2rayng;
 
-  /// In the order a subscription that did not answer Orbit is tried.
-  static const fallbacks = [incy, happ, v2rayng];
+  /// The order a Happ or INCY link's subscription is tried in after its own app.
+  static const retryOrder = [orbit, v2rayng, incy, happ];
 
   static PanelClient fromName(Object? name) => values.firstWhere((c) => c.name == name, orElse: () => orbit);
 

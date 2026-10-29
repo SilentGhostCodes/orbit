@@ -34,13 +34,14 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   that opens Happ from a script, button or meta refresh). `SubscriptionRepo.fetch` follows HTTP
   redirects by hand (a Location may be happ://…) and such pages, at most 3 levels deep, and returns
   the final `url`, which is what gets stored.
-- Panels pick the format by User-Agent, and some answer an app they do not know without servers
-  (Remnawave's `{"isFound":…}` page data, a 404, an HTML page): `SubscriptionRepo.fetch` then asks
-  again as INCY, Happ, then v2rayNG (`PanelClient`, same HWID headers), and keeps the one that worked
-  on the subscription (`Subscription.client`), so refreshes go straight to it. A subscription from a
-  link starts with that link's app (`WrappedLink.clientFor`: incy:// → INCY, happ://crypt… and
-  happ://add/ → Happ), also when the link came out of a redirect page. Happ's User-Agent is
-  `Happ/<version>` (3.24.1 now) with `X-Device-Locale`. Network errors are not retried.
+- User-Agent per subscription (`PanelClient`, same HWID headers for all), as the user set it:
+  plain https links are asked for strictly as Orbit, never as another app. A subscription from a
+  Happ link (happ://crypt…, happ://add/, also dug out of a redirect page) is asked for as Happ first,
+  from an INCY link as INCY first (`WrappedLink.clientFor`); only if the panel answers that without
+  servers (Remnawave's `{"isFound":…}` page data, a 404, an HTML page) are the others tried, in
+  `PanelClient.retryOrder` (Orbit, v2rayNG, INCY, Happ). `Subscription.client` keeps the app that
+  worked and `retryClients` whether refreshes may try others (only link subscriptions). Happ's
+  User-Agent is `Happ/<version>` (3.24.1 now) with `X-Device-Locale`. Network errors are not retried.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's
   «Подписки» row in step when a format is added.
 

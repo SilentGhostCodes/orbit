@@ -59,35 +59,48 @@ void main() {
   // HappLink reads its keys from the asset bundle
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test('a panel that answers only INCY: asked again as INCY, which is remembered', () async {
+  test('a plain link is asked for strictly as Orbit', () async {
+    final p = _panel((agent) => agent.startsWith('INCY/') ? _json(_xrayJson) : _json(_accountInfo));
+    await expectLater(
+      p.repo.fetch(_url),
+      throwsA(isA<SubscriptionException>().having((e) => e.message, 'message', 'Панель не отдаёт серверы этому приложению')),
+    );
+    expect(p.agents, ['Orbit/1.8.0 (android)']);
+
+    final ok = _panel((_) => _json(_xrayJson));
+    final r = await ok.repo.fetch(_url);
+    expect((r.client, r.retry), (PanelClient.orbit, false));
+    expect(ok.agents, hasLength(1));
+  });
+
+  test('an INCY link: INCY first, then Orbit, v2rayNG, Happ', () async {
+    final p = _panel((agent) => agent.startsWith('v2rayNG/') ? _json(_xrayJson) : _json(_accountInfo));
+    final r = await p.repo.fetch(_url, client: PanelClient.incy, retry: true);
+    expect((r.client, r.retry), (PanelClient.v2rayng, true));
+    expect(p.agents, ['INCY/3.3.9/android Dalvik/2.1.0', 'Orbit/1.8.0 (android)', 'v2rayNG/1.10.16']);
+  });
+
+  test('a Happ link the panel serves to INCY only: Happ, Orbit, v2rayNG, INCY', () async {
     final p = _panel(
       (agent) => agent.startsWith('INCY/')
           ? _json(_xrayJson, headers: {'subscription-userinfo': 'upload=0; download=0; total=42949672960; expire=1793650015'})
           : _json(_accountInfo),
     );
-    final r = await p.repo.fetch(_url);
+    final r = await p.repo.fetch(_url, client: PanelClient.happ, retry: true);
     expect(r.client, PanelClient.incy);
-    expect(r.servers.map((s) => s.name), ['🇩🇪 Франкфурт']);
     expect(r.info.total, 42949672960);
-    expect(r.url, _url);
-    expect(p.agents, ['Orbit/1.8.0 (android)', 'INCY/3.3.9/android Dalvik/2.1.0']);
+    expect(p.agents, ['Happ/3.24.1', 'Orbit/1.8.0 (android)', 'v2rayNG/1.10.16', 'INCY/3.3.9/android Dalvik/2.1.0']);
 
-    // the next refresh goes straight to INCY
+    // a refresh with what was remembered goes straight to it
     p.agents.clear();
-    expect((await p.repo.fetch(_url, client: r.client)).client, PanelClient.incy);
+    expect((await p.repo.fetch(_url, client: r.client, retry: r.retry)).client, PanelClient.incy);
     expect(p.agents, ['INCY/3.3.9/android Dalvik/2.1.0']);
   });
 
-  test('a panel that knows Orbit is asked once', () async {
-    final p = _panel((_) => _json(_xrayJson));
-    expect((await p.repo.fetch(_url)).client, PanelClient.orbit);
-    expect(p.agents, hasLength(1));
-  });
-
-  test('every app refused: the error Orbit got, after asking each once', () async {
+  test('every app refused: the first app\'s error, after asking each once', () async {
     final p = _panel((_) => http.Response('not found', 404));
     await expectLater(
-      p.repo.fetch(_url),
+      p.repo.fetch(_url, client: PanelClient.happ, retry: true),
       throwsA(isA<SubscriptionException>().having((e) => e.message, 'message', 'Панель ответила 404')),
     );
     expect(p.agents, hasLength(4));
@@ -123,7 +136,7 @@ void main() {
       }),
     );
     final r = await repo.fetch('https://happ.example.com/t/abc');
-    expect(r.client, PanelClient.happ);
+    expect((r.client, r.retry), (PanelClient.happ, true));
     expect(r.url, 'https://sub.example.com/happ-crypt1');
     expect(asked, ['happ.example.com Orbit/1.8.0 (android)', 'sub.example.com Happ/3.24.1']);
   });

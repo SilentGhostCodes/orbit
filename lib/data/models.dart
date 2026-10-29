@@ -86,6 +86,7 @@ class Subscription {
     this.autoUpdate = true,
     this.updateHours = 12,
     this.client = PanelClient.orbit,
+    this.retryClients = false,
   });
 
   final String id;
@@ -110,6 +111,10 @@ class Subscription {
   /// The app the panel answered with servers (see [PanelClient]).
   final PanelClient client;
 
+  /// Whether a refresh the panel answers without servers may try the other apps: only for
+  /// subscriptions from Happ and INCY links; plain links stay strictly with [client].
+  final bool retryClients;
+
   int get used => upload + download;
 
   bool get needsUpdate =>
@@ -127,6 +132,7 @@ class Subscription {
     bool? autoUpdate,
     int? updateHours,
     PanelClient? client,
+    bool? retryClients,
   }) => Subscription(
     id: id,
     url: url,
@@ -140,6 +146,7 @@ class Subscription {
     autoUpdate: autoUpdate ?? this.autoUpdate,
     updateHours: updateHours ?? this.updateHours,
     client: client ?? this.client,
+    retryClients: retryClients ?? this.retryClients,
   );
 
   Map<String, dynamic> toJson() => {
@@ -155,6 +162,7 @@ class Subscription {
     'autoUpdate': autoUpdate,
     'updateHours': updateHours,
     'client': client.name,
+    'retryClients': retryClients,
   };
 
   factory Subscription.fromJson(Map<String, dynamic> json) => Subscription(
@@ -170,5 +178,6 @@ class Subscription {
     autoUpdate: json['autoUpdate'] as bool? ?? true,
     updateHours: json['updateHours'] as int? ?? 12,
     client: PanelClient.fromName(json['client']),
+    retryClients: json['retryClients'] as bool? ?? false,
   );
 }

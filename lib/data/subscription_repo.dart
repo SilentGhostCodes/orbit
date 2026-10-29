@@ -24,7 +24,14 @@ class _NoServers extends SubscriptionException {
   _NoServers(super.message);
 }
 
-typedef FetchResult = ({List<Server> servers, SubscriptionInfo info, String fallbackName, String url, PanelClient client});
+typedef FetchResult = ({
+  List<Server> servers,
+  SubscriptionInfo info,
+  String fallbackName,
+  String url,
+  PanelClient client,
+  bool retry,
+});
 
 /// Downloads, parses and stores subscriptions.
 class SubscriptionRepo {
@@ -77,29 +84,35 @@ class SubscriptionRepo {
   /// How many wrapped links (pages → happ:// → URL → …) one fetch follows before giving up.
   static const _maxUnwraps = 3;
 
-  /// Downloads [url], introducing Orbit as [client] first (the one that worked last time) and, if
-  /// the panel answers without servers, as the other [PanelClient]s in turn. Redirect pages are
-  /// followed through: an HTTP redirect to `happ://…`, or a web page that opens Happ with an
-  /// encrypted link, lead to the subscription inside. `url` in the result is the one to store and
-  /// refresh: [url] itself, or the subscription a wrapped link held; `client`, the app that worked.
-  Future<FetchResult> fetch(String url, {PanelClient client = PanelClient.orbit, int unwraps = 0}) async {
+  /// Downloads [url] as [client], strictly unless [retry]: then, if the panel answers without
+  /// servers, as the others in [PanelClient.retryOrder] too. Redirect pages are followed through:
+  /// an HTTP redirect to `happ://…`, or a web page that opens Happ with an encrypted link, lead to
+  /// the subscription inside, asked for as that link's app with [retry]. In the result, `url` is
+  /// the one to store and refresh ([url] itself, or the subscription a wrapped link held), `client`
+  /// the app that worked and `retry` whether its refreshes may try the others.
+  Future<FetchResult> fetch(String url, {PanelClient client = PanelClient.orbit, bool retry = false, int unwraps = 0}) async {
     final uri = Uri.tryParse(url.trim());
     if (uri == null || !(uri.scheme == 'http' || uri.scheme == 'https') || uri.host.isEmpty) {
       throw SubscriptionException('Это не ссылка на подписку');
     }
-    final order = [client, for (final c in [PanelClient.orbit, ...PanelClient.fallbacks]) if (c != client) c];
+    final order = [
+      client,
+      if (retry)
+        for (final c in PanelClient.retryOrder)
+          if (c != client) c,
+    ];
     _NoServers? first;
     for (final c in order) {
       try {
-        return await _fetchAs(url.trim(), uri, c, unwraps);
+        return await _fetchAs(url.trim(), uri, c, retry, unwraps);
       } on _NoServers catch (e) {
-        first ??= e; // Orbit's own answer explains it best
+        first ??= e; // the first app's answer explains it best
       }
     }
     throw SubscriptionException(first!.message);
   }
 
-  Future<FetchResult> _fetchAs(String url, Uri uri, PanelClient client, int unwraps) async {
+  Future<FetchResult> _fetchAs(String url, Uri uri, PanelClient client, bool retry, int unwraps) async {
     final headers = {...client.headers(userAgent), 'Accept': '*/*', ...?device?.headers};
 
     final connection = _httpClient();
@@ -167,6 +180,7 @@ class SubscriptionRepo {
       // plain HTTP redirects are followed again on every refresh; only wrapped links are replaced
       url: url,
       client: client,
+      retry: retry,
     );
   }
 
@@ -188,7 +202,7 @@ class SubscriptionRepo {
     if (inner == null) throw SubscriptionException('Панель переадресовала на неизвестную ссылку');
     // a subscription Happ or INCY hands out (also from a redirect page) goes to that app first
     final client = WrappedLink.clientFor(link);
-    return fetch(inner.url, client: client, unwraps: unwraps + 1);
+    return fetch(inner.url, client: client, retry: client != PanelClient.orbit, unwraps: unwraps + 1);
   }
 
   static String? _nameFromDisposition(String? header) {

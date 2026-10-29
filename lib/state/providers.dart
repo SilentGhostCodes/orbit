@@ -8,6 +8,7 @@ import 'package:orbit/core/native.dart';
 import 'package:orbit/core/xray_config.dart';
 import 'package:orbit/data/device.dart';
 import 'package:orbit/data/models.dart';
+import 'package:orbit/data/panel_client.dart';
 import 'package:orbit/data/settings.dart';
 import 'package:orbit/data/subscription_repo.dart';
 import 'package:orbit/data/wrapped_link.dart';
@@ -123,7 +124,7 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
         await refresh(existing.id);
         return state.firstWhere((s) => s.id == existing.id);
       }
-      final r = await _repo.fetch(text, client: client);
+      final r = await _repo.fetch(text, client: client, retry: client != PanelClient.orbit);
       // a redirect page leads to the real subscription: that one is stored, and may already be here
       final known = state.where((s) => s.url == r.url).firstOrNull;
       if (known != null) {
@@ -143,6 +144,7 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
         autoUpdate: autoUpdate,
         updateHours: updateHours,
         client: r.client,
+        retryClients: r.retry,
       );
     } else {
       sub = Subscription(
@@ -170,7 +172,7 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
     updating.set(id, true);
     try {
       final current = sub!;
-      final r = await _repo.fetch(current.url!, client: current.client);
+      final r = await _repo.fetch(current.url!, client: current.client, retry: current.retryClients);
       await _store([
         for (final s in state)
           if (s.id == id)
