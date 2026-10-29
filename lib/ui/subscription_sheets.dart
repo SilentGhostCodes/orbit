@@ -22,8 +22,9 @@ Future<T?> _sheet<T>(BuildContext context, Widget child) => showModalBottomSheet
 
 Future<void> showSubscriptionsSheet(BuildContext context) => _sheet(context, const SubscriptionsSheet());
 
-Future<void> showAddSubscriptionSheet(BuildContext context, {String? initial}) =>
-    _sheet(context, AddSubscriptionSheet(initial: initial));
+/// [submit]: start adding [initial] at once (a link Orbit was opened with).
+Future<void> showAddSubscriptionSheet(BuildContext context, {String? initial, bool submit = false}) =>
+    _sheet(context, AddSubscriptionSheet(initial: initial, submit: submit));
 
 void _toast(BuildContext context, String text) =>
     ScaffoldMessenger.maybeOf(context)?.showSnackBar(SnackBar(content: Text(text)));
@@ -240,9 +241,10 @@ class _SubscriptionTile extends ConsumerWidget {
 
 /// 05 · Adding a subscription by link, from the clipboard or a QR code.
 class AddSubscriptionSheet extends ConsumerStatefulWidget {
-  const AddSubscriptionSheet({super.key, this.initial});
+  const AddSubscriptionSheet({super.key, this.initial, this.submit = false});
 
   final String? initial;
+  final bool submit;
 
   @override
   ConsumerState<AddSubscriptionSheet> createState() => _AddSubscriptionSheetState();
@@ -259,6 +261,11 @@ class _AddSubscriptionSheetState extends ConsumerState<AddSubscriptionSheet> {
   void initState() {
     super.initState();
     _controller.addListener(() => setState(() => _error = null));
+    if (widget.submit && (widget.initial?.trim().isNotEmpty ?? false)) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _submit();
+      });
+    }
   }
 
   @override

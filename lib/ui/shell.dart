@@ -3,12 +3,14 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:orbit/core/deep_links.dart';
 import 'package:orbit/core/native.dart';
 import 'package:orbit/state/providers.dart';
 import 'package:orbit/theme/orbit_theme.dart';
 import 'package:orbit/ui/home_page.dart';
 import 'package:orbit/ui/servers_page.dart';
 import 'package:orbit/ui/settings_page.dart';
+import 'package:orbit/ui/subscription_sheets.dart';
 
 final tabProvider = NotifierProvider<TabNotifier, int>(TabNotifier.new);
 
@@ -37,11 +39,16 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
   /// Subscriptions due for an update while the app stays open (intervals go down to an hour).
   Timer? _updates;
 
+  /// happ:// and incy:// links arriving while Orbit is open.
+  StreamSubscription<void>? _links;
+  var _openingLink = false;
+
   @override
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _onLaunch());
+    _links = DeepLinks.available.listen((_) => _openLink());
     _updates = Timer.periodic(
       const Duration(minutes: 10),
       (_) => ref.read(subscriptionsProvider.notifier).refreshAll(onlyDue: true),
@@ -51,6 +58,7 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
   @override
   void dispose() {
     _updates?.cancel();
+    _links?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
   }
@@ -62,7 +70,23 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
     }
   }
 
+  /// Opens a waiting happ:// or incy:// link as a new subscription, adding it straight away.
+  Future<void> _openLink() async {
+    if (_openingLink) return; // the one being opened takes any newer link after it
+    _openingLink = true;
+    try {
+      for (String? link = await DeepLinks.take(); link != null && mounted; link = await DeepLinks.take()) {
+        ref.read(tabProvider.notifier).go(0);
+        await showAddSubscriptionSheet(context, initial: link, submit: true);
+      }
+    } finally {
+      _openingLink = false;
+    }
+  }
+
   Future<void> _onLaunch() async {
+    // opened from «Открыть в приложении»: the link first, auto-connect waits for nothing
+    unawaited(_openLink());
     final status = await Native.status();
     if (!mounted) return;
     if (ref.read(settingsProvider).autoConnect && status.state == VpnState.disconnected) {

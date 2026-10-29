@@ -11,6 +11,7 @@ import android.graphics.Bitmap
 import android.graphics.Canvas
 import android.net.VpnService
 import android.os.Build
+import android.os.Bundle
 import android.provider.Settings
 import io.flutter.embedding.android.FlutterActivity
 import io.flutter.embedding.engine.FlutterEngine
@@ -31,6 +32,10 @@ class MainActivity : FlutterActivity() {
     private var receiverRegistered = false
     private var dnsServer: String? = null
 
+    /** A happ:// or incy:// link Orbit was opened with, until Flutter takes it. UI thread only. */
+    private var pendingLink: String? = null
+    private var links: MethodChannel? = null
+
     private val statusReceiver = object : BroadcastReceiver() {
         override fun onReceive(context: Context, intent: Intent) {
             val json = intent.getStringExtra("status") ?: return
@@ -38,9 +43,44 @@ class MainActivity : FlutterActivity() {
         }
     }
 
+    override fun onCreate(savedInstanceState: Bundle?) {
+        // a restored activity or one reopened from recents carries the old intent: not a new link
+        val fromHistory = intent.flags and Intent.FLAG_ACTIVITY_LAUNCHED_FROM_HISTORY != 0
+        if (savedInstanceState == null && !fromHistory) pendingLink = linkOf(intent)
+        super.onCreate(savedInstanceState)
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        val link = linkOf(intent) ?: return
+        pendingLink = link
+        // Flutter asks for it with "take", so a link is handed over exactly once
+        links?.invokeMethod("available", null)
+    }
+
+    private fun linkOf(intent: Intent?): String? {
+        if (intent?.action != Intent.ACTION_VIEW) return null
+        val scheme = intent.data?.scheme?.lowercase() ?: return null
+        if (scheme != "happ" && scheme != "incy") return null
+        return intent.dataString?.takeIf { it.length <= 16384 }
+    }
+
     override fun configureFlutterEngine(flutterEngine: FlutterEngine) {
         super.configureFlutterEngine(flutterEngine)
         val messenger = flutterEngine.dartExecutor.binaryMessenger
+
+        links = MethodChannel(messenger, "orbit/links").also { channel ->
+            channel.setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "take" -> {
+                        result.success(pendingLink)
+                        pendingLink = null
+                    }
+                    else -> result.notImplemented()
+                }
+            }
+        }
 
         MethodChannel(messenger, "orbit/native").setMethodCallHandler { call, result ->
             when (call.method) {
@@ -159,6 +199,8 @@ class MainActivity : FlutterActivity() {
     }
 
     override fun onDestroy() {
+        links?.setMethodCallHandler(null)
+        links = null
         if (receiverRegistered) runCatching { unregisterReceiver(statusReceiver) }
         receiverRegistered = false
         io.shutdown()

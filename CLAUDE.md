@@ -44,6 +44,12 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   `PanelClient.retryOrder` (Orbit, v2rayNG, INCY, Happ). `Subscription.client` keeps the app that
   worked and `retryClients` whether refreshes may try others (only link subscriptions). Happ's
   User-Agent is `Happ/<version>` (3.24.1 now) with `X-Device-Locale`. Network errors are not retried.
+- Orbit handles `happ://` and `incy://` VIEW intents (manifest), so it is offered in «Открыть в
+  приложении» next to Happ/INCY. MainActivity (launchMode singleTask: one instance, one engine) keeps
+  the link in `pendingLink` and says "available" on `orbit/links`; `DeepLinks.take()` fetches it
+  once, and `Shell` opens the add sheet with it, adding at once (`submit: true`). Accepted:
+  happ://crypt…, happ://add/, incy://crypt1/, incy://add/, incy://import/; other happ:// links get
+  a clear error.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's
   «Подписки» row in step when a format is added.
 

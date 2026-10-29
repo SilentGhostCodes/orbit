@@ -32,6 +32,10 @@ void main() {
       (url: 'https://sub.example.com/a?b=1', name: null),
     );
     expect(() => WrappedLink.unwrap('happ://add/ftp://x'), throwsA(isA<SubscriptionException>()));
+    expect(await WrappedLink.unwrap('incy://add/https://sub.example.com/i'), (url: 'https://sub.example.com/i', name: null));
+    expect(await WrappedLink.unwrap('incy://import/https://sub.example.com/i'), (url: 'https://sub.example.com/i', name: null));
+    // a happ:// link that is not a subscription
+    expect(() => WrappedLink.unwrap('happ://routing/onadd/abc'), throwsA(isA<SubscriptionException>()));
     expect(await WrappedLink.unwrap('https://sub.example.com/a'), isNull);
   });
 

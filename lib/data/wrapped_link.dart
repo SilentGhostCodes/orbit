@@ -10,27 +10,27 @@ import 'package:orbit/data/subscription_repo.dart';
 /// `https://…/t/<token>` pages that open Happ with an encrypted link from a script, a button or a
 /// redirect. [findIn] digs the link out of such a page, [unwrap] opens it.
 abstract class WrappedLink {
-  static final _add = RegExp(r'^happ://add/(.+)$', caseSensitive: false);
+  // happ://add/<url>, and INCY's own incy://add/<url> and incy://import/<url>
+  static final _add = RegExp(r'^(?:happ://add|incy://(?:add|import))/(.+)$', caseSensitive: false);
 
   // in a page: encrypted links first (they are what the page exists for), then happ://add/
   static final _encryptedInPage = RegExp(
     r'(?:happ://crypt[2-5]?|incy://crypt1)/[A-Za-z0-9+/=_\-]+',
     caseSensitive: false,
   );
-  static final _addInPage = RegExp(r'''happ://add/[^\s"'<>\\`]+''', caseSensitive: false);
+  static final _addInPage = RegExp(r'''(?:happ://add|incy://(?:add|import))/[^\s"'<>\\`]+''', caseSensitive: false);
   static final _percentEncoded = RegExp(r'(?:happ|incy)%3A%2F%2F[A-Za-z0-9%._~+\-/=]+', caseSensitive: false);
   static final _atob = RegExp(r'''atob\(\s*["'`]([A-Za-z0-9+/=_\-]{8,})["'`]\s*\)''');
 
   /// Pages bigger than this are not searched (a redirect page is a few kilobytes).
   static const _maxPage = 2 * 1024 * 1024;
 
-  /// The app a subscription handed out as [link] is likely served to first: INCY for incy://,
-  /// Happ for happ://crypt… and happ://add/, Orbit otherwise.
+  /// The app a subscription handed out as [link] is likely served to first: INCY for incy://…,
+  /// Happ for happ://…, Orbit otherwise.
   static PanelClient clientFor(String link) {
-    final t = link.trim();
-    if (IncyLink.matches(t)) return PanelClient.incy;
-    if (HappLink.matches(t) || _add.hasMatch(t)) return PanelClient.happ;
-    return PanelClient.orbit;
+    final t = link.trim().toLowerCase();
+    if (!matches(t)) return PanelClient.orbit;
+    return t.startsWith('incy://') ? PanelClient.incy : PanelClient.happ;
   }
 
   static bool matches(String text) {
@@ -62,13 +62,17 @@ abstract class WrappedLink {
         try {
           inner = Uri.decodeComponent(inner);
         } on Object {
-          throw SubscriptionException('Ссылка happ://add/ повреждена');
+          throw SubscriptionException('Ссылка повреждена: в ней нет адреса подписки');
         }
       }
       if (!inner.startsWith('http://') && !inner.startsWith('https://')) {
-        throw SubscriptionException('Ссылка happ://add/ повреждена');
+        throw SubscriptionException('Ссылка повреждена: в ней нет адреса подписки');
       }
       return (url: inner, name: null);
+    }
+    // other happ:// and incy:// links (routing profiles and such) carry no subscription
+    if (RegExp(r'^(?:happ|incy)://', caseSensitive: false).hasMatch(text)) {
+      throw SubscriptionException('В этой ссылке нет подписки — Orbit такие не открывает');
     }
     return null;
   }

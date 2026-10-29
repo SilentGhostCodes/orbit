@@ -161,6 +161,7 @@ void main() {
     expect(WrappedLink.clientFor('happ://crypt5/abc'), PanelClient.happ);
     expect(WrappedLink.clientFor('happ://add/https://a.example'), PanelClient.happ);
     expect(WrappedLink.clientFor('incy://crypt1/abc'), PanelClient.incy);
+    expect(WrappedLink.clientFor('INCY://add/https://a.example'), PanelClient.incy);
     expect(WrappedLink.clientFor('https://a.example/sub'), PanelClient.orbit);
   });
 
