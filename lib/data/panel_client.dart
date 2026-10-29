@@ -9,11 +9,14 @@ enum PanelClient {
   /// INCY: Remnawave panels answer it with Xray JSON.
   incy,
 
+  /// Happ: the client Remnawave's device headers are modelled on; most panels know it.
+  happ,
+
   /// v2rayNG: nearly every panel knows it and answers with share links.
   v2rayng;
 
   /// In the order a subscription that did not answer Orbit is tried.
-  static const fallbacks = [incy, v2rayng];
+  static const fallbacks = [incy, happ, v2rayng];
 
   static PanelClient fromName(Object? name) => values.firstWhere((c) => c.name == name, orElse: () => orbit);
 
@@ -26,6 +29,9 @@ enum PanelClient {
       'X-App-Version': '3.3.9',
       'X-Device-Locale': 'ru_RU',
     },
+    // as Happ for Android sends it; the device headers (x-hwid, x-device-os, x-ver-os,
+    // x-device-model) come from DeviceInfo, the same for every app
+    happ => const {'User-Agent': 'Happ/3.24.1', 'X-Device-Locale': 'ru'},
     v2rayng => const {'User-Agent': 'v2rayNG/1.10.16'},
   };
 }

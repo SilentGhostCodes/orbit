@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:orbit/data/happ_link.dart';
 import 'package:orbit/data/incy_link.dart';
+import 'package:orbit/data/panel_client.dart';
 import 'package:orbit/data/subscription_repo.dart';
 
 /// Links that carry a subscription inside them (`happ://crypt…`, `incy://crypt1/…`,
@@ -22,6 +23,15 @@ abstract class WrappedLink {
 
   /// Pages bigger than this are not searched (a redirect page is a few kilobytes).
   static const _maxPage = 2 * 1024 * 1024;
+
+  /// The app a subscription handed out as [link] is likely served to first: INCY for incy://,
+  /// Happ for happ://crypt… and happ://add/, Orbit otherwise.
+  static PanelClient clientFor(String link) {
+    final t = link.trim();
+    if (IncyLink.matches(t)) return PanelClient.incy;
+    if (HappLink.matches(t) || _add.hasMatch(t)) return PanelClient.happ;
+    return PanelClient.orbit;
+  }
 
   static bool matches(String text) {
     final t = text.trim();

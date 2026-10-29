@@ -4,7 +4,6 @@ import 'dart:io';
 import 'package:http/http.dart' as http;
 import 'package:orbit/core/libxray.dart';
 import 'package:orbit/data/device.dart';
-import 'package:orbit/data/incy_link.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/panel_client.dart';
 import 'package:orbit/data/subscription_parser.dart';
@@ -187,8 +186,8 @@ class SubscriptionRepo {
     if (unwraps >= _maxUnwraps) throw SubscriptionException('Слишком много вложенных ссылок');
     final inner = await WrappedLink.unwrap(link);
     if (inner == null) throw SubscriptionException('Панель переадресовала на неизвестную ссылку');
-    // a subscription INCY hands out is likely served to INCY first
-    final client = IncyLink.matches(link) ? PanelClient.incy : PanelClient.orbit;
+    // a subscription Happ or INCY hands out (also from a redirect page) goes to that app first
+    final client = WrappedLink.clientFor(link);
     return fetch(inner.url, client: client, unwraps: unwraps + 1);
   }
 

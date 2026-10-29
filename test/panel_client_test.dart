@@ -5,6 +5,7 @@ import 'package:http/http.dart' as http;
 import 'package:http/testing.dart';
 import 'package:orbit/data/panel_client.dart';
 import 'package:orbit/data/subscription_repo.dart';
+import 'package:orbit/data/wrapped_link.dart';
 
 const _url = 'https://panel.example.com/sub/abc';
 
@@ -55,6 +56,9 @@ http.Response _json(String body, {Map<String, String> headers = const {}}) => ht
 }
 
 void main() {
+  // HappLink reads its keys from the asset bundle
+  TestWidgetsFlutterBinding.ensureInitialized();
+
   test('a panel that answers only INCY: asked again as INCY, which is remembered', () async {
     final p = _panel(
       (agent) => agent.startsWith('INCY/')
@@ -86,7 +90,7 @@ void main() {
       p.repo.fetch(_url),
       throwsA(isA<SubscriptionException>().having((e) => e.message, 'message', 'Панель ответила 404')),
     );
-    expect(p.agents, hasLength(3));
+    expect(p.agents, hasLength(4));
   });
 
   test('an unreachable panel is not asked again as other apps', () async {
@@ -102,8 +106,38 @@ void main() {
     expect(calls, 1);
   });
 
+  test('a Happ link behind a redirect page: the subscription inside is asked for as Happ', () async {
+    // encrypted with the bundled crypt key: https://sub.example.com/happ-crypt1
+    const happ =
+        'happ://crypt/N0XSrBGjaeOipUDxdo4w1EcvzeomVzQFtTFYjBH_gnYkXJmMNCK68csSd27RfXezf1kAeoT6frpay-JnxhTaoAxqyNAw4A5W1kD2udhjsnvLGVzM2XXhyVvltJY75A82bqvPHuaJ0GA38HcuJrbVJ2_rztQkzND7lZRwvaFAs6I';
+    final asked = <String>[];
+    final repo = SubscriptionRepo(
+      'Orbit/1.8.0 (android)',
+      httpClient: () => MockClient((request) async {
+        final agent = request.headers['User-Agent'] ?? '';
+        asked.add('${request.url.host} $agent');
+        if (request.url.host == 'happ.example.com') {
+          return http.Response('<script>location.href = "$happ";</script>', 200, headers: {'content-type': 'text/html'});
+        }
+        return agent.startsWith('Happ/') ? _json(_xrayJson) : _json(_accountInfo);
+      }),
+    );
+    final r = await repo.fetch('https://happ.example.com/t/abc');
+    expect(r.client, PanelClient.happ);
+    expect(r.url, 'https://sub.example.com/happ-crypt1');
+    expect(asked, ['happ.example.com Orbit/1.8.0 (android)', 'sub.example.com Happ/3.24.1']);
+  });
+
+  test('the app a link starts with', () {
+    expect(WrappedLink.clientFor('happ://crypt5/abc'), PanelClient.happ);
+    expect(WrappedLink.clientFor('happ://add/https://a.example'), PanelClient.happ);
+    expect(WrappedLink.clientFor('incy://crypt1/abc'), PanelClient.incy);
+    expect(WrappedLink.clientFor('https://a.example/sub'), PanelClient.orbit);
+  });
+
   test('stored names map back, unknown ones fall back to Orbit', () {
     expect(PanelClient.fromName('incy'), PanelClient.incy);
+    expect(PanelClient.fromName('happ'), PanelClient.happ);
     expect(PanelClient.fromName(null), PanelClient.orbit);
     expect(PanelClient.fromName('something'), PanelClient.orbit);
   });

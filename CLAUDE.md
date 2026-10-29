@@ -36,9 +36,11 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   the final `url`, which is what gets stored.
 - Panels pick the format by User-Agent, and some answer an app they do not know without servers
   (Remnawave's `{"isFound":…}` page data, a 404, an HTML page): `SubscriptionRepo.fetch` then asks
-  again as INCY, then v2rayNG (`PanelClient`, same HWID headers), and keeps the one that worked on
-  the subscription (`Subscription.client`), so refreshes go straight to it. Subscriptions from
-  incy:// links start with INCY. Network errors are not retried as other apps.
+  again as INCY, Happ, then v2rayNG (`PanelClient`, same HWID headers), and keeps the one that worked
+  on the subscription (`Subscription.client`), so refreshes go straight to it. A subscription from a
+  link starts with that link's app (`WrappedLink.clientFor`: incy:// → INCY, happ://crypt… and
+  happ://add/ → Happ), also when the link came out of a redirect page. Happ's User-Agent is
+  `Happ/<version>` (3.24.1 now) with `X-Device-Locale`. Network errors are not retried.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's
   «Подписки» row in step when a format is added.
 

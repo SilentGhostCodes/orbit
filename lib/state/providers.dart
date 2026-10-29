@@ -7,9 +7,7 @@ import 'package:orbit/core/libxray.dart';
 import 'package:orbit/core/native.dart';
 import 'package:orbit/core/xray_config.dart';
 import 'package:orbit/data/device.dart';
-import 'package:orbit/data/incy_link.dart';
 import 'package:orbit/data/models.dart';
-import 'package:orbit/data/panel_client.dart';
 import 'package:orbit/data/settings.dart';
 import 'package:orbit/data/subscription_repo.dart';
 import 'package:orbit/data/wrapped_link.dart';
@@ -109,8 +107,8 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
   Future<Subscription> add(String input, {bool autoUpdate = true, int updateHours = 12}) async {
     var text = input.trim();
     String? givenName;
-    // a subscription INCY hands out is likely served to INCY first
-    final client = IncyLink.matches(text) ? PanelClient.incy : PanelClient.orbit;
+    // a subscription Happ or INCY hands out goes to that app first
+    final client = WrappedLink.clientFor(text);
     // happ://crypt…, incy://crypt1/…, happ://add/…
     final wrapped = await WrappedLink.unwrap(text);
     if (wrapped != null) {
