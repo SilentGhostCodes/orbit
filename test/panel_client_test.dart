@@ -60,10 +60,10 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test('a plain link is asked for strictly as Orbit', () async {
-    final p = _panel((agent) => agent.startsWith('INCY/') ? _json(_xrayJson) : _json(_accountInfo));
+    final p = _panel((agent) => agent.startsWith('INCY/') ? _json(_xrayJson) : http.Response('not found', 404));
     await expectLater(
       p.repo.fetch(_url),
-      throwsA(isA<SubscriptionException>().having((e) => e.message, 'message', 'Панель не отдаёт серверы этому приложению')),
+      throwsA(isA<SubscriptionException>().having((e) => e.message, 'message', 'Панель ответила 404')),
     );
     expect(p.agents, ['Orbit/1.8.0 (android)']);
 
@@ -71,6 +71,22 @@ void main() {
     final r = await ok.repo.fetch(_url);
     expect((r.client, r.retry), (PanelClient.orbit, false));
     expect(ok.agents, hasLength(1));
+  });
+
+  test('a plain link the panel says it does not know Orbit for (horu): INCY, kept for refreshes', () async {
+    final p = _panel(
+      (agent) => agent.startsWith('INCY/')
+          ? _json(_xrayJson, headers: {'subscription-userinfo': 'upload=0; download=0; total=42949672960; expire=1793650015'})
+          : _json(_accountInfo),
+    );
+    final r = await p.repo.fetch(_url);
+    expect((r.client, r.retry), (PanelClient.incy, false));
+    expect(r.info.total, 42949672960);
+    expect(p.agents, ['Orbit/1.8.0 (android)', 'INCY/3.3.9/android Dalvik/2.1.0']);
+
+    p.agents.clear();
+    expect((await p.repo.fetch(_url, client: r.client, retry: r.retry)).client, PanelClient.incy);
+    expect(p.agents, ['INCY/3.3.9/android Dalvik/2.1.0']);
   });
 
   test('an INCY link: INCY first, then Orbit, v2rayNG, Happ', () async {

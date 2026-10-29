@@ -1,7 +1,7 @@
 name: orbit
 description: "Orbit — Android VPN client on Xray-core."
 publish_to: 'none'
-version: 1.9.1+1
+version: 1.9.2+1
 
 environment:
   sdk: ^3.10.4

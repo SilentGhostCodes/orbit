@@ -24,6 +24,11 @@ class _NoServers extends SubscriptionException {
   _NoServers(super.message);
 }
 
+/// Remnawave's answer to an app it has no format for: its subscription page's data.
+class _UnknownApp extends _NoServers {
+  _UnknownApp() : super('Панель не отдаёт серверы этому приложению');
+}
+
 typedef FetchResult = ({
   List<Server> servers,
   SubscriptionInfo info,
@@ -102,11 +107,16 @@ class SubscriptionRepo {
           if (c != client) c,
     ];
     _NoServers? first;
-    for (final c in order) {
+    for (var i = 0; i < order.length; i++) {
       try {
-        return await _fetchAs(url.trim(), uri, c, retry, unwraps);
+        return await _fetchAs(url.trim(), uri, order[i], retry, unwraps);
       } on _NoServers catch (e) {
         first ??= e; // the first app's answer explains it best
+        // A plain link stays with Orbit, except when the panel says outright that it does not
+        // know Orbit (Remnawave's page data): then it is asked as the apps panels do know.
+        if (!retry && i == 0 && e is _UnknownApp) {
+          order.addAll([for (final c in PanelClient.unknownAppOrder) if (c != client) c]);
+        }
       }
     }
     throw SubscriptionException(first!.message);
@@ -161,7 +171,7 @@ class SubscriptionRepo {
       if (inner != null) return _fetchWrapped(inner, unwraps);
       throw _NoServers('По ссылке открылась веб-страница, а не подписка');
     }
-    if (_isAccountInfo(body)) throw _NoServers('Панель не отдаёт серверы этому приложению');
+    if (_isAccountInfo(body)) throw _UnknownApp();
 
     final List<Server> servers;
     try {

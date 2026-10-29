@@ -35,7 +35,9 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   redirects by hand (a Location may be happ://…) and such pages, at most 3 levels deep, and returns
   the final `url`, which is what gets stored.
 - User-Agent per subscription (`PanelClient`, same HWID headers for all), as the user set it:
-  plain https links are asked for strictly as Orbit, never as another app. A subscription from a
+  plain https links are asked for strictly as Orbit; the one exception is a panel answering Orbit
+  with Remnawave's `{"isFound":…}` page data (it does not know Orbit, e.g. horu): then INCY, Happ,
+  v2rayNG (`PanelClient.unknownAppOrder`), and the one that worked is kept. A subscription from a
   Happ link (happ://crypt…, happ://add/, also dug out of a redirect page) is asked for as Happ first,
   from an INCY link as INCY first (`WrappedLink.clientFor`); only if the panel answers that without
   servers (Remnawave's `{"isFound":…}` page data, a 404, an HTML page) are the others tried, in

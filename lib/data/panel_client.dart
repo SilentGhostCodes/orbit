@@ -1,5 +1,5 @@
 /// Which app Orbit introduces itself as to a subscription panel. Plain subscription links are asked
-/// for strictly as Orbit. A subscription from a Happ or INCY link is asked for as that app first, and
+/// for strictly as Orbit, unless the panel answers that it does not know Orbit ([unknownAppOrder]). A subscription from a Happ or INCY link is asked for as that app first, and
 /// only if the panel answers it without servers, as the others in [retryOrder]. The app that worked
 /// is kept on the subscription, so refreshes go straight to it.
 enum PanelClient {
@@ -17,6 +17,9 @@ enum PanelClient {
 
   /// The order a Happ or INCY link's subscription is tried in after its own app.
   static const retryOrder = [orbit, v2rayng, incy, happ];
+
+  /// The order a plain link is tried in when the panel answers Orbit that it does not know it.
+  static const unknownAppOrder = [incy, happ, v2rayng];
 
   static PanelClient fromName(Object? name) => values.firstWhere((c) => c.name == name, orElse: () => orbit);
 
