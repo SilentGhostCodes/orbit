@@ -112,7 +112,7 @@ jobs:
         if: steps.cache.outputs.cache-hit != 'true'
         with:
           go-version-file: qwdtt-src/go_client/go.mod
-          cache-dependency-path: qwdtt-src/go_client/go.sum
+          cache: false
 
       - uses: nttld/setup-ndk@v1
         if: steps.cache.outputs.cache-hit != 'true'
@@ -128,6 +128,8 @@ jobs:
         run: |
           set -eo pipefail
           {
+            # the client's module ships without go.sum, as upstream's build script expects
+            go mod tidy -e
             cc="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
             for abi in arm64-v8a:arm64:aarch64-linux-android armeabi-v7a:arm:armv7a-linux-androideabi x86_64:amd64:x86_64-linux-android; do
               IFS=: read -r name arch prefix <<< "$abi"
