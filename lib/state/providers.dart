@@ -9,7 +9,9 @@ import 'package:orbit/core/xray_config.dart';
 import 'package:orbit/data/device.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/panel_client.dart';
+import 'package:orbit/data/qwdtt.dart';
 import 'package:orbit/data/settings.dart';
+import 'package:orbit/data/subscription_parser.dart';
 import 'package:orbit/data/subscription_repo.dart';
 import 'package:orbit/data/wrapped_link.dart';
 
@@ -118,7 +120,22 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
     }
     final id = DateTime.now().microsecondsSinceEpoch.toString();
     final Subscription sub;
-    if (text.startsWith('http://') || text.startsWith('https://')) {
+    // qWDTT: wdtt://, qwdtt://, a profile or a subscription's JSON pasted as text
+    final ({String? name, List<QwdttProfile> profiles})? qwdtt;
+    try {
+      qwdtt = Qwdtt.parse(text);
+    } on QwdttException catch (e) {
+      throw SubscriptionException(e.message);
+    }
+    if (qwdtt != null) {
+      sub = Subscription(
+        id: id,
+        name: qwdtt.name ?? (qwdtt.profiles.length == 1 ? qwdtt.profiles.first.name : 'qWDTT'),
+        servers: dedupeNames([for (final p in qwdtt.profiles) p.toServer()]),
+        updatedAt: DateTime.now(),
+        autoUpdate: false,
+      );
+    } else if (text.startsWith('http://') || text.startsWith('https://')) {
       final existing = state.where((s) => s.url == text).firstOrNull;
       if (existing != null) {
         await refresh(existing.id);
@@ -276,6 +293,9 @@ class PingsNotifier extends Notifier<Pings> {
   /// go to all servers at once. The app itself is outside the tunnel, so this is the real round trip
   /// to each server, connected or not.
   Future<Map<String, int?>> pingAll(Subscription sub) async {
+    // qWDTT servers answer only through a VK call, which takes a while to set up: not pinged
+    final servers = [for (final s in sub.servers) if (!s.isQwdtt) s];
+    if (servers.length != sub.servers.length) sub = sub.copyWith(servers: servers);
     final keys = [for (final s in sub.servers) Pings.key(sub.id, s.name)];
     state = Pings(delays: state.delays, running: {...state.running, ...keys});
     final settings = ref.read(settingsProvider);
@@ -407,7 +427,13 @@ class ConnectionController extends Notifier<ConnectionUi> {
       final panelRouting = settings.subscriptionRouting && server.routing != null;
       await Native.start(
         xrayConfig: jsonEncode(config),
-        vpn: vpnOptions(settings, serverName: server.name, notes: notes),
+        vpn: vpnOptions(
+          settings,
+          serverName: server.name,
+          notes: notes,
+          qwdtt: QwdttProfile.of(server),
+          deviceId: boot.device?.hwid,
+        ),
         fallback: panelRouting
             ? jsonEncode(
                 buildXrayConfig(

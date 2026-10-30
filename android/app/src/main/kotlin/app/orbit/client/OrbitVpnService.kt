@@ -27,6 +27,12 @@ class OrbitVpnService : VpnService() {
     private var running = false
     private var serverName = ""
 
+    /** qWDTT's client, while the server is a qWDTT profile; stopped from any thread. */
+    @Volatile private var qwdtt: QwdttTunnel? = null
+
+    /** Bumped by every start request: a start a newer one replaced gives up quietly. */
+    @Volatile private var generation = 0
+
     override fun onCreate() {
         super.onCreate()
         val nm = getSystemService(NotificationManager::class.java)
@@ -48,16 +54,22 @@ class OrbitVpnService : VpnService() {
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         if (intent?.action == VpnStore.ACTION_STOP) {
+            // a qWDTT start may be waiting for VK (or the captcha) on the worker: cut it short
+            qwdtt?.stop()
             worker.execute { stop(null) }
             return START_NOT_STICKY
         }
         // START, a restart by the system, or Android's always-on VPN: run the saved config
         foreground(getString(R.string.connecting))
-        worker.execute { start() }
+        val mine = ++generation
+        // a qWDTT start still waiting for VK would hold the worker: the new config wins
+        qwdtt?.stop()
+        worker.execute { start(mine) }
         return START_STICKY
     }
 
-    private fun start() {
+    private fun start(mine: Int) {
+        if (mine != generation) return
         val options = VpnStore.options(this)
         serverName = options.optString("server")
         VpnStore.publish(this, VpnStore.CONNECTING, server = serverName)
@@ -67,6 +79,23 @@ class OrbitVpnService : VpnService() {
             options.optJSONArray("notes")?.let { notes ->
                 for (i in 0 until notes.length()) VpnStore.log(this, notes.optString(i))
             }
+            var fallbackConfig = VpnStore.fallbackFile(this).takeIf { it.exists() }?.let { JSONObject(it.readText()) }
+
+            // qWDTT: its client brings up the way to the server first (through VK), and the
+            // server's WireGuard config becomes the proxy outbound. Before the TUN, so the phone
+            // keeps its internet while VK is asked.
+            options.optJSONObject("qwdtt")?.let { profile ->
+                foreground(getString(R.string.connecting_vk))
+                val tunnel = QwdttTunnel(this, profile)
+                qwdtt = tunnel
+                val settings = tunnel.start()
+                tunnel.onExit = { reason ->
+                    runCatching { worker.execute { if (qwdtt === tunnel) stop(reason) } }
+                }
+                useQwdtt(config, settings)
+                fallbackConfig?.let { useQwdtt(it, settings) }
+                foreground(getString(R.string.connecting))
+            }
 
             val fd = establish(options)
             val dns = options.optString("dnsIp", "1.1.1.1")
@@ -74,9 +103,10 @@ class OrbitVpnService : VpnService() {
             val error = runXray(config, fd)
             if (error != null) {
                 // the subscription's routing did not start: Orbit's own routing, rather than no VPN
-                val fallback = VpnStore.fallbackFile(this).takeIf { it.exists() } ?: throw IllegalStateException(error)
+                val fallback = fallbackConfig ?: throw IllegalStateException(error)
+                fallbackConfig = null
                 VpnStore.log(this, "роутинг подписки не запустился ($error), включаю роутинг Orbit")
-                runXray(JSONObject(fallback.readText()), fd)?.let { throw IllegalStateException(it) }
+                runXray(fallback, fd)?.let { throw IllegalStateException(it) }
             }
 
             running = true
@@ -84,8 +114,24 @@ class OrbitVpnService : VpnService() {
             VpnStore.publish(this, VpnStore.CONNECTED, since = System.currentTimeMillis(), server = serverName)
             foreground(getString(R.string.connected_to, serverName))
         } catch (e: Throwable) {
+            if (mine != generation) {
+                // replaced by a newer start, which takes it from here
+                VpnStore.log(this, "start replaced: ${e.message}")
+                return
+            }
             VpnStore.log(this, "start failed: ${e.message}")
             stop(e.message ?: e.toString())
+        }
+    }
+
+    /** Gives the qWDTT placeholder outbound (settings.orbitQwdtt, from Dart) the server's WireGuard. */
+    private fun useQwdtt(config: JSONObject, settings: JSONObject) {
+        val outbounds = config.optJSONArray("outbounds") ?: return
+        for (i in 0 until outbounds.length()) {
+            val o = outbounds.optJSONObject(i) ?: continue
+            if (o.optJSONObject("settings")?.optBoolean("orbitQwdtt") == true) {
+                o.put("protocol", "wireguard").put("settings", JSONObject(settings.toString()))
+            }
         }
     }
 
@@ -155,6 +201,11 @@ class OrbitVpnService : VpnService() {
     private fun stopCore() {
         runCatching { LibXray.invoke(request("stopXray", JSONObject())) }
         runCatching { LibXray.resetDNS() }
+        qwdtt?.let {
+            qwdtt = null
+            it.onExit = null
+            it.stop()
+        }
         running = false
     }
 
@@ -175,6 +226,7 @@ class OrbitVpnService : VpnService() {
     }
 
     override fun onDestroy() {
+        qwdtt?.stop()
         if (running) {
             stopCore()
             runCatching { tun?.close() }

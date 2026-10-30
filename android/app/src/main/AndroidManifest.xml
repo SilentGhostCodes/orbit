@@ -36,15 +36,26 @@
             </intent-filter>
             <!-- Subscription links handed out for Happ and INCY: Orbit is offered next to them
                  in "Открыть в приложении" (happ://crypt…, happ://add/…, incy://crypt1/…,
-                 incy://add/…), and opens them as a new subscription. -->
+                 incy://add/…, qWDTT's qwdtt:// and wdtt://), and opens them as a new subscription. -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <category android:name="android.intent.category.BROWSABLE" />
                 <data android:scheme="happ" />
                 <data android:scheme="incy" />
+                <data android:scheme="qwdtt" />
+                <data android:scheme="wdtt" />
             </intent-filter>
         </activity>
+
+        <!-- VK's captcha for qWDTT, next to the client waiting for it in the VPN process. -->
+        <activity
+            android:name=".CaptchaActivity"
+            android:exported="false"
+            android:process=":vpn"
+            android:excludeFromRecents="true"
+            android:taskAffinity="app.orbit.client.captcha"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
         <!-- In its own process: libXray refuses to ping while it runs a tunnel in the same one,
              and a crash in the core does not take the app down with it. -->

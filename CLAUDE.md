@@ -50,6 +50,20 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   once, and `Shell` opens the add sheet with it, adding at once (`submit: true`). Accepted:
   happ://crypt…, happ://add/, incy://crypt1/, incy://add/, incy://import/; other happ:// links get
   a clear error.
+- qWDTT (beta branch; WireGuard through VK call TURN relays, github.com/kostfuciy/qWDTT, GPL-3.0):
+  CI builds its Go client at `core/QWDTT_COMMIT` into `jniLibs/<abi>/libqwdtt.so`, a program the
+  VPN service runs (`QwdttTunnel`), as qWDTT's own app does; it is not linked into Orbit. A profile
+  (`QwdttProfile`, from qwdtt://, wdtt://, JSON or a subscription's `profiles`) is a `Server`
+  whose proxy outbound is a placeholder (`settings.orbitQwdtt` + `settings.qwdtt`); `vpnOptions`
+  passes the profile (plus HWID as device id, `qwdttDns`). The service starts the client before
+  the TUN, waits for the server's WireGuard config (wg-turn.conf in filesDir/qwdtt), and puts an
+  Xray `wireguard` outbound to 127.0.0.1:<port> in the placeholder's place. VK's captcha: the
+  client prints `CAPTCHA_SOLVE|mode|uri|token`; "auto" is answered `error:unsupported` at once,
+  manual ones open `CaptchaActivity` (WebView in the :vpn process, catches
+  `captchaNotRobot.check`'s success_token) from a notification or the home screen
+  (`VpnStatus.captcha`). Not pinged; anonymous VK only (no account mode yet).
+- Releases: pushes to `main` publish releases (Latest), to `beta` pre-releases; «[no release]» in
+  a commit message builds without publishing.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's
   «Подписки» row in step when a format is added.
 

@@ -150,6 +150,21 @@ class DnsChoice {
   static DnsChoice byId(String? id) => all.firstWhere((d) => d.id == id, orElse: () => all.first);
 }
 
+/// The DNS qWDTT's client looks VK up with (its -go-dns), under Настройки → qWDTT.
+enum QwdttDns {
+  yandex('yandex', 'Яндекс'),
+  cloudflare('cloudflare', 'Cloudflare'),
+  google('google', 'Google'),
+  dohYandex('doh-yandex', 'Яндекс DoH');
+
+  const QwdttDns(this.id, this.label);
+
+  final String id;
+  final String label;
+
+  static QwdttDns byId(String? id) => values.firstWhere((d) => d.id == id, orElse: () => yandex);
+}
+
 class OrbitSettings {
   const OrbitSettings({
     this.routing = RoutingMode.bypassRu,
@@ -170,6 +185,7 @@ class OrbitSettings {
     this.pingUrl = defaultPingUrl,
     this.fragmentSettings = Fragment.defaults,
     this.subscriptionRouting = true,
+    this.qwdttDns = 'yandex',
   });
 
   final RoutingMode routing;
@@ -207,6 +223,9 @@ class OrbitSettings {
   /// Use the routing and DNS a server's Xray JSON brings, instead of [routing], where it has them.
   final bool subscriptionRouting;
 
+  /// The DNS qWDTT's client finds VK with ([QwdttDns] ids); Яндекс answers on whitelisted mobile.
+  final String qwdttDns;
+
   /// The fragmentation to apply, or null when it is off.
   Fragment? get fragmentOptions => fragment ? fragmentSettings : null;
 
@@ -232,6 +251,7 @@ class OrbitSettings {
     String? pingUrl,
     Fragment? fragmentSettings,
     bool? subscriptionRouting,
+    String? qwdttDns,
   }) => OrbitSettings(
     routing: routing ?? this.routing,
     dns: dns ?? this.dns,
@@ -251,6 +271,7 @@ class OrbitSettings {
     pingUrl: pingUrl ?? this.pingUrl,
     fragmentSettings: fragmentSettings ?? this.fragmentSettings,
     subscriptionRouting: subscriptionRouting ?? this.subscriptionRouting,
+    qwdttDns: qwdttDns ?? this.qwdttDns,
   );
 
   Map<String, dynamic> toJson() => {
@@ -272,6 +293,7 @@ class OrbitSettings {
     'pingUrl': pingUrl,
     'fragmentSettings': fragmentSettings.toJson(),
     'subscriptionRouting': subscriptionRouting,
+    'qwdttDns': qwdttDns,
   };
 
   factory OrbitSettings.fromJson(Map<String, dynamic> j) => OrbitSettings(
@@ -293,6 +315,7 @@ class OrbitSettings {
     pingUrl: j['pingUrl'] as String? ?? defaultPingUrl,
     fragmentSettings: Fragment.fromJson(j['fragmentSettings']),
     subscriptionRouting: j['subscriptionRouting'] as bool? ?? true,
+    qwdttDns: QwdttDns.byId(j['qwdttDns'] as String?).id,
   );
 
   static const _key = 'orbit_settings';

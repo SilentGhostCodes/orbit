@@ -110,6 +110,28 @@ class SettingsPage extends ConsumerWidget {
               divider: false,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PingSettingsPage())),
             ),
+            const SectionLabel('qWDTT · бета'),
+            OrbitTile(
+              title: 'DNS для ВК',
+              subtitle: 'Через него qWDTT находит серверы звонков',
+              value: QwdttDns.byId(s.qwdttDns).label,
+              onTap: () => pick<String>(
+                context,
+                title: 'DNS для ВК',
+                current: s.qwdttDns,
+                options: {
+                  for (final d in QwdttDns.values)
+                    d.id: (d.label, d == QwdttDns.yandex ? 'Работает при белых списках' : 'Обычный DNS'),
+                },
+                onSelected: (v) => notifier.change((s) => s.copyWith(qwdttDns: v), reconnect: true),
+              ),
+            ),
+            const OrbitTile(
+              title: 'Вход в ВК',
+              subtitle: 'Анонимно; свой аккаунт — в следующих версиях',
+              value: 'Анонимно',
+              divider: false,
+            ),
             const SectionLabel('Приложение'),
             OrbitTile(
               title: 'Форматы подписок',

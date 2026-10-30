@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:orbit/data/models.dart';
+import 'package:orbit/data/qwdtt.dart';
 import 'package:orbit/data/settings.dart';
 import 'package:orbit/util/format.dart';
 
@@ -34,7 +35,8 @@ Map<String, dynamic> _fragmentOutbound(Fragment f) => {
 /// The server's outbounds, with the fragment hop when [fragment] is given and the server has no
 /// chain of its own.
 List<Map<String, dynamic>> serverOutbounds(Server server, {required Fragment? fragment}) {
-  if (fragment == null) return server.outbounds;
+  // qWDTT's WireGuard goes to its client on the phone, not to the internet: nothing to fragment
+  if (fragment == null || server.isQwdtt) return server.outbounds;
   final proxy = Map<String, dynamic>.of(server.proxy);
   final stream = Map<String, dynamic>.of(proxy['streamSettings'] as Map<String, dynamic>? ?? const {});
   final sockopt = Map<String, dynamic>.of(stream['sockopt'] as Map<String, dynamic>? ?? const {});
@@ -226,14 +228,28 @@ Map<String, dynamic> _ownDns(OrbitSettings settings) => {
   'queryStrategy': 'UseIPv4',
 };
 
-/// What the VPN service needs besides the Xray config: per-app rules and the DNS to announce.
-Map<String, dynamic> vpnOptions(OrbitSettings settings, {required String serverName, List<String> notes = const []}) => {
+/// What the VPN service needs besides the Xray config: per-app rules and the DNS to announce, and
+/// for a qWDTT server its profile ([qwdtt]), which the service starts qWDTT's client with.
+Map<String, dynamic> vpnOptions(
+  OrbitSettings settings, {
+  required String serverName,
+  List<String> notes = const [],
+  QwdttProfile? qwdtt,
+  String? deviceId,
+}) => {
   'appsMode': settings.appsMode.name,
   'apps': settings.apps.toList(),
   'dnsIp': settings.dnsChoice.ip,
   'server': serverName,
   'autoConnect': settings.autoConnect,
   'notes': notes,
+  if (qwdtt != null)
+    'qwdtt': {
+      ...qwdtt.toJson(),
+      // the server binds passwords to a device: the same id as the subscription requests' HWID
+      'deviceId': deviceId ?? '',
+      'dns': settings.qwdttDns,
+    },
 };
 
 /// The CIDR lines of an ipverse aggregated list.

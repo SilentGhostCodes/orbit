@@ -62,7 +62,7 @@ class MainActivity : FlutterActivity() {
     private fun linkOf(intent: Intent?): String? {
         if (intent?.action != Intent.ACTION_VIEW) return null
         val scheme = intent.data?.scheme?.lowercase() ?: return null
-        if (scheme != "happ" && scheme != "incy") return null
+        if (scheme !in setOf("happ", "incy", "qwdtt", "wdtt")) return null
         return intent.dataString?.takeIf { it.length <= 16384 }
     }
 
@@ -153,6 +153,11 @@ class MainActivity : FlutterActivity() {
                     val maker = Build.MANUFACTURER.replaceFirstChar { it.uppercase() }
                     val model = if (Build.MODEL.startsWith(Build.MANUFACTURER, ignoreCase = true)) Build.MODEL else "$maker ${Build.MODEL}"
                     result.success(mapOf("osVersion" to Build.VERSION.RELEASE, "model" to model))
+                }
+
+                "openCaptcha" -> {
+                    runCatching { startActivity(Intent(this, CaptchaActivity::class.java)) }
+                    result.success(null)
                 }
 
                 "openVpnSettings" -> {

@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:orbit/data/models.dart';
+import 'package:orbit/data/qwdtt.dart';
 import 'package:orbit/state/providers.dart';
 import 'package:orbit/theme/orbit_theme.dart';
 import 'package:orbit/ui/subscription_sheets.dart';
+import 'package:orbit/util/format.dart';
 import 'package:orbit/widgets/orbit_widgets.dart';
 
 /// 06 · Servers of the active subscription.
@@ -110,8 +112,9 @@ class _Servers extends ConsumerWidget {
                       for (final (i, s) in sub.servers.indexed)
                         _ServerTile(
                           name: s.displayName,
-                          protocol: s.protocol,
+                          protocol: s.isQwdtt ? _qwdttLine(s) : s.protocol,
                           country: s.country,
+                          qwdtt: s.isQwdtt,
                           delay: pings.shown(sub.id, s.name),
                           selected: picked == s.name,
                           last: i == sub.servers.length - 1,
@@ -136,6 +139,7 @@ class _ServerTile extends StatelessWidget {
     this.delay,
     this.auto = false,
     this.last = false,
+    this.qwdtt = false,
   });
 
   final String name;
@@ -145,6 +149,9 @@ class _ServerTile extends StatelessWidget {
   final bool selected;
   final bool auto;
   final bool last;
+
+  /// Reached through VK calls: a phone badge, and no ping (it would take a call to measure).
+  final bool qwdtt;
   final VoidCallback onTap;
 
   @override
@@ -157,7 +164,17 @@ class _ServerTile extends StatelessWidget {
       ),
       child: Row(
         children: [
-          if (auto) const AutoBadge(size: 28) else FlagBadge(countryCode: country),
+          if (auto)
+            const AutoBadge(size: 28)
+          else if (qwdtt)
+            Container(
+              width: 28,
+              height: 28,
+              decoration: const BoxDecoration(color: OrbitColors.surfaceHighest, shape: BoxShape.circle),
+              child: Icon(Icons.phone_in_talk_rounded, size: 15, color: OrbitColors.accent),
+            )
+          else
+            FlagBadge(countryCode: country),
           const SizedBox(width: 14),
           Expanded(
             child: Column(
@@ -179,7 +196,10 @@ class _ServerTile extends StatelessWidget {
               ],
             ),
           ),
-          if (!auto) PingLabel(delay: delay),
+          if (qwdtt)
+            Text('через ВК', style: OrbitText.caption.copyWith(fontSize: 12))
+          else if (!auto)
+            PingLabel(delay: delay),
           SizedBox(
             width: 30,
             child: selected
@@ -193,4 +213,13 @@ class _ServerTile extends StatelessWidget {
       ),
     ),
   );
+}
+
+/// «qWDTT · 2 звонка · 16 потоков».
+String _qwdttLine(Server s) {
+  final p = QwdttProfile.of(s);
+  if (p == null) return 'qWDTT';
+  final calls = p.hashes.length;
+  return 'qWDTT · $calls ${plural(calls, 'звонок', 'звонка', 'звонков')} · '
+      '${p.workers} ${plural(p.workers, 'поток', 'потока', 'потоков')}';
 }

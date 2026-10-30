@@ -53,6 +53,16 @@ object VpnStore {
         )
     }
 
+    /** Whether qWDTT waits for VK's captcha (see QwdttCaptcha); kept on the published state. */
+    fun publishCaptcha(ctx: Context, waiting: Boolean) {
+        val json = runCatching { JSONObject(stateFile(ctx).readText()) }.getOrNull() ?: return
+        json.put("captcha", waiting)
+        runCatching { stateFile(ctx).writeText(json.toString()) }
+        ctx.sendBroadcast(
+            Intent(ACTION_STATUS).setPackage(ctx.packageName).putExtra("status", json.toString()),
+        )
+    }
+
     /** The last published state, or disconnected when the VPN process is not alive to back it. */
     fun status(ctx: Context): JSONObject {
         val json = runCatching { JSONObject(stateFile(ctx).readText()) }.getOrNull()

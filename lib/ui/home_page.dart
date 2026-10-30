@@ -191,6 +191,12 @@ class _ConnectArea extends ConsumerWidget {
 
     final Widget label = switch (status.state) {
       VpnState.connected => const _Connected(key: ValueKey('on')),
+      VpnState.connecting when status.captcha => const _Status(
+        key: ValueKey('captcha'),
+        title: 'ВК просит капчу',
+        subtitle: 'Подтверди, что ты не робот, — и подключение продолжится',
+        color: OrbitColors.warning,
+      ),
       VpnState.connecting => const _Status(key: ValueKey('connecting'), title: 'Подключение…'),
       VpnState.disconnecting => const _Status(key: ValueKey('disconnecting'), title: 'Отключение…'),
       _ when ui.picking => const _Status(
@@ -223,6 +229,15 @@ class _ConnectArea extends ConsumerWidget {
             child: AnimatedSwitcher(duration: const Duration(milliseconds: 250), child: label),
           ),
         ),
+        if (status.state == VpnState.connecting && status.captcha)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 0, 32, 8),
+            child: OrbitTonalButton(
+              label: 'Пройти капчу',
+              icon: Icons.verified_user_outlined,
+              onPressed: () => Native.openCaptcha(),
+            ),
+          ),
       ],
     );
   }

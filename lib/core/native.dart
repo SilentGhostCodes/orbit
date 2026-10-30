@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 /// What the VPN service reports. It runs in its own process (":vpn"), so this is all the app
 /// learns about it: a state, when it got there, and an error if it stopped on one.
 class VpnStatus {
-  const VpnStatus(this.state, {this.since, this.error, this.server});
+  const VpnStatus(this.state, {this.since, this.error, this.server, this.captcha = false});
 
   final VpnState state;
   final DateTime? since;
@@ -13,6 +13,9 @@ class VpnStatus {
 
   /// The server the tunnel was started with.
   final String? server;
+
+  /// qWDTT waits for VK's captcha: [Native.openCaptcha] shows it.
+  final bool captcha;
 
   static const disconnected = VpnStatus(VpnState.disconnected);
 
@@ -23,6 +26,7 @@ class VpnStatus {
       since: since == null || since == 0 ? null : DateTime.fromMillisecondsSinceEpoch(since),
       error: (map['error'] as String?)?.isEmpty ?? true ? null : map['error'] as String,
       server: (map['server'] as String?)?.isEmpty ?? true ? null : map['server'] as String,
+      captcha: map['captcha'] == true,
     );
   }
 }
@@ -95,6 +99,9 @@ abstract class Native {
       (await _channel.invokeMapMethod<String, String>('deviceInfo')) ?? const {};
 
   static Future<void> openVpnSettings() => _channel.invokeMethod('openVpnSettings');
+
+  /// VK's captcha window, while qWDTT waits for it ([VpnStatus.captcha]).
+  static Future<void> openCaptcha() => _channel.invokeMethod('openCaptcha');
 
   static Future<void> requestNotifications() => _channel.invokeMethod('requestNotifications');
 }
