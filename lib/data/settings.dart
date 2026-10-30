@@ -186,6 +186,7 @@ class OrbitSettings {
     this.fragmentSettings = Fragment.defaults,
     this.subscriptionRouting = true,
     this.qwdttDns = 'yandex',
+    this.qwdttVkAccount = false,
   });
 
   final RoutingMode routing;
@@ -226,6 +227,9 @@ class OrbitSettings {
   /// The DNS qWDTT's client finds VK with ([QwdttDns] ids); Яндекс answers on whitelisted mobile.
   final String qwdttDns;
 
+  /// qWDTT takes VK call access from the user's VK account ([Native.vkLogin]) instead of anonymously.
+  final bool qwdttVkAccount;
+
   /// The fragmentation to apply, or null when it is off.
   Fragment? get fragmentOptions => fragment ? fragmentSettings : null;
 
@@ -252,6 +256,7 @@ class OrbitSettings {
     Fragment? fragmentSettings,
     bool? subscriptionRouting,
     String? qwdttDns,
+    bool? qwdttVkAccount,
   }) => OrbitSettings(
     routing: routing ?? this.routing,
     dns: dns ?? this.dns,
@@ -272,6 +277,7 @@ class OrbitSettings {
     fragmentSettings: fragmentSettings ?? this.fragmentSettings,
     subscriptionRouting: subscriptionRouting ?? this.subscriptionRouting,
     qwdttDns: qwdttDns ?? this.qwdttDns,
+    qwdttVkAccount: qwdttVkAccount ?? this.qwdttVkAccount,
   );
 
   Map<String, dynamic> toJson() => {
@@ -294,6 +300,7 @@ class OrbitSettings {
     'fragmentSettings': fragmentSettings.toJson(),
     'subscriptionRouting': subscriptionRouting,
     'qwdttDns': qwdttDns,
+    'qwdttVkAccount': qwdttVkAccount,
   };
 
   factory OrbitSettings.fromJson(Map<String, dynamic> j) => OrbitSettings(
@@ -316,6 +323,7 @@ class OrbitSettings {
     fragmentSettings: Fragment.fromJson(j['fragmentSettings']),
     subscriptionRouting: j['subscriptionRouting'] as bool? ?? true,
     qwdttDns: QwdttDns.byId(j['qwdttDns'] as String?).id,
+    qwdttVkAccount: j['qwdttVkAccount'] as bool? ?? false,
   );
 
   static const _key = 'orbit_settings';

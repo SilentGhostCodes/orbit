@@ -44,7 +44,7 @@ object QwdttCaptcha {
             tunnel = from
             url = redirectUri
         }
-        VpnStore.publishCaptcha(ctx, true)
+        VpnStore.publishVk(ctx, "captcha")
         notify(ctx)
         // a window already open shows the new page
         CaptchaActivity.current?.let { activity -> activity.runOnUiThread { activity.load() } }
@@ -76,7 +76,7 @@ object QwdttCaptcha {
 
     fun clear(ctx: Context) {
         ctx.getSystemService(NotificationManager::class.java)?.cancel(NOTIFICATION)
-        VpnStore.publishCaptcha(ctx, false)
+        VpnStore.publishVk(ctx, null, onlyIf = "captcha")
     }
 
     private fun notify(ctx: Context) {

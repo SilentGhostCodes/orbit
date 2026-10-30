@@ -61,7 +61,14 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   client prints `CAPTCHA_SOLVE|mode|uri|token`; "auto" is answered `error:unsupported` at once,
   manual ones open `CaptchaActivity` (WebView in the :vpn process, catches
   `captchaNotRobot.check`'s success_token) from a notification or the home screen
-  (`VpnStatus.captcha`). Not pinged; anonymous VK only (no account mode yet).
+  (`VpnStatus.vk == 'captcha'`). Not pinged.
+- qWDTT «Аккаунт ВК» (`OrbitSettings.qwdttVkAccount` → `vkAuth: account`): `VkAccount` (VPN process)
+  joins each call in a hidden WebView with the user's VK session (cookies of the :vpn WebView,
+  signed in through `VkActivity`), catches `turn_server` and gives it to the client as
+  `-vk-creds-file` at start and as `TURN_CREDS|hash|base64` when it prints `VK_AUTH_REQUIRED|hash`
+  (creds last ~9 min). A hidden join that fails asks the user (`VpnStatus.vk == 'join'`, notification,
+  `VkActivity` join mode). The app process has no WebView: it learns the session from
+  `vk_account.json` (`Native.vkAccount`). Sign-in/out go through `VkActivity` modes.
 - Releases: pushes to `main` publish releases (Latest), to `beta` pre-releases; «[no release]» in
   a commit message builds without publishing.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's

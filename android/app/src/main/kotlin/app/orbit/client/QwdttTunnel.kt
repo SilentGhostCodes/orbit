@@ -48,6 +48,21 @@ class QwdttTunnel(private val ctx: Context, private val profile: JSONObject) {
 
         dir.mkdirs()
         File(dir, CONF).delete()
+        File(dir, CREDS).delete()
+
+        // «аккаунт ВК»: TURN credentials from the user's VK session for every call, before the
+        // client starts; it asks for fresh ones itself when they run out (VK_AUTH_REQUIRED)
+        val account = profile.optString("vkAuth") == "account"
+        if (account) {
+            val creds = JSONObject()
+            for (hash in hashes) {
+                if (cancelled) throw IllegalStateException("Подключение отменено")
+                VpnStore.log(ctx, "ВК: вход в звонок ${hash.take(6)}…")
+                creds.put(hash, VkAccount.turn(ctx, hash).toJson())
+            }
+            File(dir, CREDS).writeText(JSONObject().put("hashes", creds).toString())
+            VpnStore.log(ctx, "ВК: доступ к звонкам получен (${hashes.size})")
+        }
 
         val cmd = mutableListOf(
             binary.path,
@@ -59,12 +74,12 @@ class QwdttTunnel(private val ctx: Context, private val profile: JSONObject) {
             "-password", password,
             // the Go solver first; the VK window only when it gives up (see onCaptcha)
             "-captcha-mode", "auto",
-            "-vk-auth", "anonymous",
-            "-vk-anon-path", "vkcalls",
+            "-vk-auth", if (account) "account" else "anonymous",
             "-go-dns", profile.optString("dns", "yandex").ifBlank { "yandex" },
             "-obfs", profile.optString("obfs", "audio").ifBlank { "audio" },
             "-mode", "vpn",
         )
+        if (account) cmd += listOf("-vk-creds-file", File(dir, CREDS).path) else cmd += listOf("-vk-anon-path", "vkcalls")
         if (profile.optBoolean("turnTcp")) cmd.add("-turn-tcp")
         if (profile.optBoolean("noDtls")) cmd.add("-notls")
 
@@ -96,6 +111,7 @@ class QwdttTunnel(private val ctx: Context, private val profile: JSONObject) {
                     if (line.isEmpty() || line.startsWith("║") || line.startsWith("╔") || line.startsWith("╚")) continue
                     when {
                         line.startsWith("CAPTCHA_SOLVE|") -> onCaptcha(line)
+                        line.startsWith("VK_AUTH_REQUIRED|") -> onVkAuth(line.removePrefix("VK_AUTH_REQUIRED|").trim())
                         line.contains("Сохранён в $CONF") -> onConfig()
                         else -> {
                             // the client prints the password nowhere, but just in case
@@ -158,6 +174,34 @@ class QwdttTunnel(private val ctx: Context, private val profile: JSONObject) {
         QwdttCaptcha.request(ctx, this, uri)
     }
 
+    /**
+     * The client's TURN credentials for [hash] ran out (account mode): fresh ones from the VK
+     * session, on a thread of their own, so the client's output keeps being read meanwhile.
+     */
+    private fun onVkAuth(hash: String) {
+        if (hash.isEmpty() || cancelled) return
+        Thread({
+            val line = try {
+                val b64 = android.util.Base64.encodeToString(
+                    VkAccount.turn(ctx, hash).toJson().toString().toByteArray(Charsets.UTF_8),
+                    android.util.Base64.NO_WRAP,
+                )
+                "TURN_CREDS|$hash|$b64"
+            } catch (e: Throwable) {
+                VpnStore.log(ctx, "ВК: ${e.message}")
+                "TURN_CREDS|error:${(e.message ?: "failed").replace('|', '/').replace('\n', ' ')}"
+            }
+            synchronized(lock) {
+                runCatching {
+                    stdin?.apply {
+                        write(line + "\n")
+                        flush()
+                    }
+                }
+            }
+        }, "qwdtt-vk").apply { isDaemon = true }.start()
+    }
+
     /** The success token from VK's window, or "error:…". */
     fun answerCaptcha(result: String) {
         val clean = result.replace("\n", " ").replace("\r", " ").trim()
@@ -175,6 +219,7 @@ class QwdttTunnel(private val ctx: Context, private val profile: JSONObject) {
     fun stop() {
         cancelled = true
         QwdttCaptcha.cancel(ctx, this)
+        VkAccount.cancel(ctx)
         val p = synchronized(lock) {
             runCatching {
                 stdin?.apply {
@@ -192,11 +237,13 @@ class QwdttTunnel(private val ctx: Context, private val profile: JSONObject) {
         // "STOP" lets it close its relays; a stuck one is killed
         if (runCatching { p.waitFor(2, TimeUnit.SECONDS) }.getOrDefault(false) != true) p.destroyForcibly()
         runCatching { File(dir, CONF).delete() }
+        runCatching { File(dir, CREDS).delete() }
     }
 
     companion object {
         const val DEFAULT_PORT = 9000
         private const val CONF = "wg-turn.conf"
+        private const val CREDS = "vk_turn_creds.json"
         private const val START_TIMEOUT_MS = 180_000L
 
         private fun JSONArray?.strings(): List<String> =

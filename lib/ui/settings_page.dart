@@ -126,12 +126,27 @@ class SettingsPage extends ConsumerWidget {
                 onSelected: (v) => notifier.change((s) => s.copyWith(qwdttDns: v), reconnect: true),
               ),
             ),
-            const OrbitTile(
+            OrbitTile(
               title: 'Вход в ВК',
-              subtitle: 'Анонимно; свой аккаунт — в следующих версиях',
-              value: 'Анонимно',
-              divider: false,
+              subtitle: s.qwdttVkAccount ? 'До 4 потоков на звонок, реже капча' : 'Без аккаунта, ВК может просить капчу',
+              value: s.qwdttVkAccount ? 'Аккаунт ВК' : 'Анонимно',
+              divider: !s.qwdttVkAccount,
+              onTap: () => pick<bool>(
+                context,
+                title: 'Вход в ВК',
+                current: s.qwdttVkAccount,
+                options: const {
+                  false: ('Анонимно', 'Ничего не нужно, но ВК чаще просит капчу'),
+                  true: ('Аккаунт ВК', 'Звонки через твой аккаунт: стабильнее, до 4 потоков'),
+                },
+                onSelected: (v) async {
+                  await notifier.change((s) => s.copyWith(qwdttVkAccount: v), reconnect: true);
+                  // no session yet: straight to signing in
+                  if (v && !(ref.read(vkAccountProvider).value ?? false)) await Native.vkLogin();
+                },
+              ),
             ),
+            if (s.qwdttVkAccount) const _VkAccountTile(),
             const SectionLabel('Приложение'),
             OrbitTile(
               title: 'Форматы подписок',
@@ -262,4 +277,40 @@ class _NewBadge extends StatelessWidget {
     ),
     child: Text('новое', style: OrbitText.caption.copyWith(fontSize: 11, color: OrbitColors.accent)),
   );
+}
+
+/// The VK session qWDTT's account mode uses: sign in, or sign out.
+class _VkAccountTile extends ConsumerWidget {
+  const _VkAccountTile();
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final signedIn = ref.watch(vkAccountProvider).value ?? false;
+    return OrbitTile(
+      title: signedIn ? 'Аккаунт ВК подключён' : 'Войти в ВК',
+      subtitle: signedIn ? 'Нажми, чтобы выйти' : 'Без входа qWDTT не подключится в этом режиме',
+      value: signedIn ? null : 'Войти',
+      divider: false,
+      trailing: signedIn ? null : const Icon(Icons.chevron_right_rounded, color: OrbitColors.textSecondary),
+      onTap: () async {
+        if (!signedIn) return Native.vkLogin();
+        final out = await showDialog<bool>(
+          context: context,
+          builder: (context) => AlertDialog(
+            title: const Text('Выйти из ВК?', style: OrbitText.sheetTitle),
+            content: const Text('qWDTT в режиме аккаунта не подключится, пока не войдёшь снова.', style: OrbitText.body),
+            actions: [
+              TextButton(onPressed: () => Navigator.pop(context, false), child: const Text('Отмена')),
+              TextButton(onPressed: () => Navigator.pop(context, true), child: const Text('Выйти')),
+            ],
+          ),
+        );
+        if (out != true) return;
+        await Native.vkLogout();
+        // the sign-out runs in the VPN process: ask again in a moment
+        await Future<void>.delayed(const Duration(milliseconds: 600));
+        ref.invalidate(vkAccountProvider);
+      },
+    );
+  }
 }

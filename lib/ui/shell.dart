@@ -66,6 +66,7 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
     if (state == AppLifecycleState.resumed) {
+      ref.invalidate(vkAccountProvider);
       ref.read(subscriptionsProvider.notifier).refreshAll(onlyDue: true);
     }
   }

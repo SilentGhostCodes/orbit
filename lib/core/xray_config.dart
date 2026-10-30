@@ -249,6 +249,7 @@ Map<String, dynamic> vpnOptions(
       // the server binds passwords to a device: the same id as the subscription requests' HWID
       'deviceId': deviceId ?? '',
       'dns': settings.qwdttDns,
+      'vkAuth': settings.qwdttVkAccount ? 'account' : 'anonymous',
     },
 };
 

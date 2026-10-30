@@ -53,10 +53,15 @@ object VpnStore {
         )
     }
 
-    /** Whether qWDTT waits for VK's captcha (see QwdttCaptcha); kept on the published state. */
-    fun publishCaptcha(ctx: Context, waiting: Boolean) {
+    /**
+     * What qWDTT waits for the user to do in VK, kept on the published state: "captcha"
+     * (QwdttCaptcha), "join" (VkAccount), or null. [onlyIf]: clear only that one.
+     */
+    @Synchronized
+    fun publishVk(ctx: Context, action: String?, onlyIf: String? = null) {
         val json = runCatching { JSONObject(stateFile(ctx).readText()) }.getOrNull() ?: return
-        json.put("captcha", waiting)
+        if (onlyIf != null && json.optString("vk") != onlyIf) return
+        json.put("vk", action ?: "")
         runCatching { stateFile(ctx).writeText(json.toString()) }
         ctx.sendBroadcast(
             Intent(ACTION_STATUS).setPackage(ctx.packageName).putExtra("status", json.toString()),

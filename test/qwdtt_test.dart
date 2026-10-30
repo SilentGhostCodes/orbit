@@ -86,6 +86,9 @@ void main() {
     expect(options['qwdtt'], containsPair('deviceId', 'abc123'));
     expect(options['qwdtt'], containsPair('dns', 'yandex'));
     expect(options['qwdtt'], containsPair('peer', '203.0.113.10:56000'));
+    expect(options['qwdtt'], containsPair('vkAuth', 'anonymous'));
+    final account = vpnOptions(settings.copyWith(qwdttVkAccount: true), serverName: server.name, qwdtt: p);
+    expect(account['qwdtt'], containsPair('vkAuth', 'account'));
     expect(vpnOptions(settings, serverName: 'x').containsKey('qwdtt'), isFalse);
   });
 }

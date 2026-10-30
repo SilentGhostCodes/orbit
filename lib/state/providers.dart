@@ -468,3 +468,6 @@ final currentServerProvider = Provider<({String? name, bool auto})>((ref) {
   return (name: picked, auto: picked == null);
 });
 
+/// Whether there is a VK session for qWDTT's account mode; re-read when the app comes back (the
+/// sign-in window is another process's).
+final vkAccountProvider = FutureProvider<bool>((ref) => Native.vkAccount());

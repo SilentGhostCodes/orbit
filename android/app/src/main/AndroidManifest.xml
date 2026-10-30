@@ -57,6 +57,17 @@
             android:taskAffinity="app.orbit.client.captcha"
             android:theme="@android:style/Theme.DeviceDefault.NoActionBar" />
 
+        <!-- VK sign-in and call joins for qWDTT's account mode; the same process (and WebView
+             cookies) as the hidden joins the VPN service makes. -->
+        <activity
+            android:name=".VkActivity"
+            android:exported="false"
+            android:process=":vpn"
+            android:excludeFromRecents="true"
+            android:taskAffinity="app.orbit.client.vk"
+            android:theme="@android:style/Theme.DeviceDefault.NoActionBar"
+            android:windowSoftInputMode="adjustResize" />
+
         <!-- In its own process: libXray refuses to ping while it runs a tunnel in the same one,
              and a crash in the core does not take the app down with it. -->
         <service
