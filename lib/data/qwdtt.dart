@@ -181,10 +181,8 @@ abstract class Qwdtt {
   }
 
   static QwdttProfile _checked(QwdttProfile p) {
-    final hashes = [
-      for (final h in p.hashes)
-        if (_hash(h) case final hash? when hash.isNotEmpty) hash,
-    ].toSet().toList();
+    // unique, in order; what is not a hash left out
+    final hashes = <String>{for (final h in p.hashes) ?_hash(h)}.toList();
     if (p.peer.isEmpty || !p.peer.contains(':')) throw const QwdttException('В профиле qWDTT нет адреса сервера');
     if (hashes.isEmpty) throw const QwdttException('В профиле qWDTT нет хешей звонков ВК');
     if (p.password.isEmpty) throw const QwdttException('В профиле qWDTT нет пароля');
@@ -199,7 +197,7 @@ abstract class Qwdtt {
     );
   }
 
-  /// A hash, also out of a whole call link (vk.com/call/join/<hash>).
+  /// A hash, also out of a whole call link (`vk.com/call/join/<hash>`).
   static String? _hash(String raw) {
     var h = raw.trim();
     final join = h.indexOf('/join/');
