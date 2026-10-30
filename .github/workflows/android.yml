@@ -2,7 +2,8 @@ name: Android APK
 
 on:
   push:
-    branches: [main]
+    # main: releases; beta: pre-releases (qWDTT and other features not proven on phones yet)
+    branches: [main, beta]
     tags: ["v*"]
     # notes alone change nothing in the APK: no new build, no duplicate release
     paths-ignore: ["**.md", "design/**"]
@@ -86,8 +87,80 @@ jobs:
           path: core-out/libXray.aar
           retention-days: 1
 
+  # qWDTT's client (WireGuard over VK call TURN relays), github.com/kostfuciy/qWDTT at
+  # core/QWDTT_COMMIT, built as a stand-alone Android executable per ABI. Orbit's VPN service runs it
+  # as a separate program, as qWDTT's own app does (GPL-3.0: the source is that repo at that commit).
+  qwdtt:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - name: Cached qWDTT client
+        id: cache
+        uses: actions/cache/restore@v5
+        with:
+          path: qwdtt-out
+          key: qwdtt-android-${{ hashFiles('core/QWDTT_COMMIT') }}
+
+      - name: Check out qWDTT
+        if: steps.cache.outputs.cache-hit != 'true'
+        run: |
+          git clone https://github.com/kostfuciy/qWDTT qwdtt-src
+          git -C qwdtt-src checkout "$(cat core/QWDTT_COMMIT)"
+
+      - uses: actions/setup-go@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          go-version-file: qwdtt-src/go_client/go.mod
+          cache-dependency-path: qwdtt-src/go_client/go.sum
+
+      - uses: nttld/setup-ndk@v1
+        if: steps.cache.outputs.cache-hit != 'true'
+        id: ndk
+        with:
+          ndk-version: r28
+
+      - name: Build libqwdtt.so
+        if: steps.cache.outputs.cache-hit != 'true'
+        working-directory: qwdtt-src/go_client
+        env:
+          NDK: ${{ steps.ndk.outputs.ndk-path }}
+        run: |
+          set -eo pipefail
+          {
+            cc="$NDK/toolchains/llvm/prebuilt/linux-x86_64/bin"
+            for abi in arm64-v8a:arm64:aarch64-linux-android armeabi-v7a:arm:armv7a-linux-androideabi x86_64:amd64:x86_64-linux-android; do
+              IFS=: read -r name arch prefix <<< "$abi"
+              mkdir -p "$GITHUB_WORKSPACE/qwdtt-out/$name"
+              # a program, not a library: named lib*.so so Android unpacks it next to the others
+              GOOS=android GOARCH="$arch" CGO_ENABLED=1 CC="$cc/${prefix}24-clang" \
+                go build -trimpath -ldflags='-s -w -checklinkname=0' -o "$GITHUB_WORKSPACE/qwdtt-out/$name/libqwdtt.so" .
+            done
+            ls -laR "$GITHUB_WORKSPACE/qwdtt-out"
+          } 2>&1 | tee "$GITHUB_WORKSPACE/qwdtt.log"
+
+      - name: Report qWDTT errors
+        if: failure()
+        run: |
+          touch qwdtt.log
+          tail -n 120 qwdtt.log > errors.txt
+          msg=$(sed -e 's/%/%25/g' errors.txt | awk 'BEGIN{ORS="%0A"} {print}')
+          echo "::error title=qWDTT::${msg}"
+
+      - uses: actions/cache/save@v5
+        if: steps.cache.outputs.cache-hit != 'true'
+        with:
+          path: qwdtt-out
+          key: qwdtt-android-${{ hashFiles('core/QWDTT_COMMIT') }}
+
+      - uses: actions/upload-artifact@v5
+        with:
+          name: qwdtt-android
+          path: qwdtt-out
+          retention-days: 1
+
   apk:
-    needs: core
+    needs: [core, qwdtt]
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v5
@@ -119,6 +192,11 @@ jobs:
         with:
           name: libxray-android
           path: android/app/libs
+
+      - uses: actions/download-artifact@v5
+        with:
+          name: qwdtt-android
+          path: android/app/src/main/jniLibs
 
       # Fresh geo lists for the subscription's routing, trimmed to what fits in an APK.
       - uses: actions/setup-go@v5
@@ -167,7 +245,7 @@ jobs:
 
       - name: Version
         id: version
-        run: echo "name=$(grep -oP '^version:\s*\K[0-9.]+' pubspec.yaml)" >> "$GITHUB_OUTPUT"
+        run: echo "name=$(grep -oP '^version:\s*\K[0-9A-Za-z.-]+' pubspec.yaml)" >> "$GITHUB_OUTPUT"
 
       - name: Build
         run: |
@@ -198,16 +276,20 @@ jobs:
           name: Orbit-android
           path: out/*.apk
 
-      # Every build on main becomes a release, so the APK is one tap away on the phone.
+      # Every build on main becomes a release, so the APK is one tap away on the phone; builds on
+      # beta become pre-releases, which never take «Latest» from main's.
       - name: Release
-        if: github.event_name != 'pull_request'
+        # «[no release]» in the commit message: build and test only
+        if: github.event_name != 'pull_request' && !contains(github.event.head_commit.message, '[no release]')
         uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ startsWith(github.ref, 'refs/tags/v') && github.ref_name || format('v{0}-build{1}', steps.version.outputs.name, github.run_number) }}
           name: ${{ format('Orbit {0}', steps.version.outputs.name) }}
           target_commitish: ${{ github.sha }}
-          make_latest: true
+          prerelease: ${{ github.ref == 'refs/heads/beta' }}
+          make_latest: ${{ github.ref == 'refs/heads/beta' && 'false' || 'true' }}
           body: |
+            ${{ github.ref == 'refs/heads/beta' && 'Бета: новое, ещё не проверенное на многих телефонах. Ставится поверх обычной версии.' || '' }}
             Для большинства телефонов — Orbit-arm64.apk.
             Если не ставится («не удалось проанализировать») — Orbit-universal.apk.
           files: out/*.apk
