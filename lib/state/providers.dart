@@ -237,6 +237,24 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
     }
   }
 
+  /// Replaces [oldName]'s server in subscription [id] (a qWDTT profile edited by hand); a server
+  /// the tunnel runs on is reconnected.
+  Future<void> updateServer(String id, String oldName, Server server) async {
+    final sub = state.where((s) => s.id == id).firstOrNull;
+    if (sub == null) return;
+    await _store([
+      for (final s in state)
+        if (s.id == id) s.copyWith(servers: [for (final x in s.servers) x.name == oldName ? server : x]) else s,
+    ]);
+    if (oldName != server.name && ref.read(settingsProvider).selectedServers[id] == oldName) {
+      await ref.read(settingsProvider.notifier).selectServer(id, server.name);
+    }
+    final running = ref.read(vpnStatusProvider).value?.server;
+    if (ref.read(settingsProvider).activeSubscription == id && (running == oldName || running == server.name)) {
+      await ref.read(connectionProvider.notifier).reconnectIfConnected();
+    }
+  }
+
   Future<void> setAutoUpdate(String id, bool on) async =>
       _store([for (final s in state) s.id == id ? s.copyWith(autoUpdate: on) : s]);
 

@@ -180,6 +180,9 @@ abstract class Qwdtt {
     );
   }
 
+  /// [p] cleaned up (hashes out of call links, limits) and checked; throws [QwdttException].
+  static QwdttProfile validated(QwdttProfile p) => _checked(p);
+
   static QwdttProfile _checked(QwdttProfile p) {
     // unique, in order; what is not a hash left out
     final hashes = <String>{for (final h in p.hashes) ?_hash(h)}.toList();

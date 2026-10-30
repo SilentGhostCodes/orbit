@@ -69,6 +69,10 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   (creds last ~9 min). A hidden join that fails asks the user (`VpnStatus.vk == 'join'`, notification,
   `VkActivity` join mode). The app process has no WebView: it learns the session from
   `vk_account.json` (`Native.vkAccount`). Sign-in/out go through `VkActivity` modes.
+- Настройки → qWDTT (`QwdttPage`): VK sign-in mode, streams (`qwdttWorkers`, 0 = profile's), captcha
+  mode (`QwdttCaptcha` → -captcha-mode auto/wv/rjs), DNS for VK, and every qWDTT profile's hashes
+  (`QwdttProfilePage`, saved through `SubscriptionsNotifier.updateServer`; a URL subscription's
+  refresh replaces the edits).
 - Releases: pushes to `main` publish releases (Latest), to `beta` pre-releases; «[no release]» in
   a commit message builds without publishing.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's

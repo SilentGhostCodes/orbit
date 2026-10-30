@@ -73,7 +73,7 @@ class QwdttTunnel(private val ctx: Context, private val profile: JSONObject) {
             "-device-id", profile.optString("deviceId").ifBlank { "orbit" },
             "-password", password,
             // the Go solver first; the VK window only when it gives up (see onCaptcha)
-            "-captcha-mode", "auto",
+            "-captcha-mode", profile.optString("captchaMode", "auto").takeIf { it in setOf("auto", "wv", "rjs") } ?: "auto",
             "-vk-auth", if (account) "account" else "anonymous",
             "-go-dns", profile.optString("dns", "yandex").ifBlank { "yandex" },
             "-obfs", profile.optString("obfs", "audio").ifBlank { "audio" },

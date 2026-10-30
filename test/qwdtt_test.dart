@@ -90,5 +90,31 @@ void main() {
     final account = vpnOptions(settings.copyWith(qwdttVkAccount: true), serverName: server.name, qwdtt: p);
     expect(account['qwdtt'], containsPair('vkAuth', 'account'));
     expect(vpnOptions(settings, serverName: 'x').containsKey('qwdtt'), isFalse);
+    // the profile's streams unless Настройки → qWDTT says otherwise; the captcha mode as set
+    expect(options['qwdtt'], containsPair('workers', QwdttProfile.defaultWorkers));
+    expect(options['qwdtt'], containsPair('captchaMode', 'auto'));
+    final tuned = vpnOptions(
+      settings.copyWith(qwdttWorkers: 8, qwdttCaptcha: QwdttCaptcha.window.id),
+      serverName: server.name,
+      qwdtt: p,
+    );
+    expect(tuned['qwdtt'], containsPair('workers', 8));
+    expect(tuned['qwdtt'], containsPair('captchaMode', 'wv'));
+  });
+
+  test('a profile edited by hand is checked like a link', () {
+    const base = QwdttProfile(name: 'Дом', peer: '1.2.3.4:56000', hashes: [], password: 'pw');
+    final p = Qwdtt.validated(
+      QwdttProfile(
+        name: base.name,
+        peer: base.peer,
+        hashes: ['https://vk.com/call/join/$hashA', ' $hashB ', '', hashA, 'abcdefgh1', 'abcdefgh2'],
+        password: base.password,
+      ),
+    );
+    expect(p.hashes, [hashA, hashB, 'abcdefgh1', 'abcdefgh2']);
+    expect(() => Qwdtt.validated(base), throwsA(isA<QwdttException>()));
+    expect(OrbitSettings.fromJson({'qwdttWorkers': 500, 'qwdttCaptcha': 'nope'}).qwdttWorkers, 108);
+    expect(OrbitSettings.fromJson({'qwdttCaptcha': 'nope'}).qwdttCaptcha, 'auto');
   });
 }

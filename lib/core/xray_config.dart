@@ -246,6 +246,8 @@ Map<String, dynamic> vpnOptions(
   if (qwdtt != null)
     'qwdtt': {
       ...qwdtt.toJson(),
+      if (settings.qwdttWorkers > 0) 'workers': settings.qwdttWorkers,
+      'captchaMode': settings.qwdttCaptcha,
       // the server binds passwords to a device: the same id as the subscription requests' HWID
       'deviceId': deviceId ?? '',
       'dns': settings.qwdttDns,
