@@ -14,6 +14,17 @@ import 'package:orbit/ui/subscription_sheets.dart';
 
 final tabProvider = NotifierProvider<TabNotifier, int>(TabNotifier.new);
 
+/// Whether Orbit is on screen. Anything that ticks on its own (the connection timer, subscription
+/// updates) stops while it is not, so the app does not wake the phone in the background.
+final appVisibleProvider = NotifierProvider<AppVisibleNotifier, bool>(AppVisibleNotifier.new);
+
+class AppVisibleNotifier extends Notifier<bool> {
+  @override
+  bool build() => true;
+
+  void set(bool visible) => state = visible;
+}
+
 class TabNotifier extends Notifier<int> {
   @override
   int build() => 0;
@@ -49,6 +60,11 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _onLaunch());
     _links = DeepLinks.available.listen((_) => _openLink());
+    _startUpdates();
+  }
+
+  void _startUpdates() {
+    _updates?.cancel();
     _updates = Timer.periodic(
       const Duration(minutes: 10),
       (_) => ref.read(subscriptionsProvider.notifier).refreshAll(onlyDue: true),
@@ -65,9 +81,16 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
 
   @override
   void didChangeAppLifecycleState(AppLifecycleState state) {
-    if (state == AppLifecycleState.resumed) {
+    final visible = state == AppLifecycleState.resumed;
+    ref.read(appVisibleProvider.notifier).set(visible);
+    if (visible) {
       ref.invalidate(vkAccountProvider);
       ref.read(subscriptionsProvider.notifier).refreshAll(onlyDue: true);
+      _startUpdates();
+    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
+      // nothing to update on screen: the next opening catches up on what is due
+      _updates?.cancel();
+      _updates = null;
     }
   }
 
@@ -111,52 +134,107 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
         if (!didPop) ref.read(tabProvider.notifier).go(0);
       },
       child: Scaffold(
-        body: IndexedStack(index: index, children: const [HomePage(), ServersPage(), SettingsPage()]),
+        body: IndexedStack(
+          index: index,
+          children: [
+            // a hidden tab's animations (the connect button's orbit) stop instead of drawing unseen
+            for (final (i, page) in const [HomePage(), ServersPage(), SettingsPage()].indexed)
+              TickerMode(enabled: i == index, child: page),
+          ],
+        ),
         bottomNavigationBar: showNav
-            ? ColoredBox(
-                color: OrbitColors.background,
-                child: SafeArea(
-                  top: false,
-                  child: SizedBox(
-                    height: 64,
-                    child: Row(
-                      children: [
-                        for (final (i, tab) in _tabs.indexed)
-                          Expanded(
-                            child: InkResponse(
-                              onTap: () {
-                                HapticFeedback.selectionClick();
-                                ref.read(tabProvider.notifier).go(i);
-                              },
-                              radius: 36,
-                              child: Column(
-                                mainAxisAlignment: MainAxisAlignment.center,
-                                children: [
-                                  Icon(
-                                    i == index ? tab.selected : tab.icon,
-                                    size: 21,
-                                    color: i == index ? OrbitColors.textPrimary : OrbitColors.textSecondary,
-                                  ),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    tab.label,
-                                    style: TextStyle(
-                                      fontSize: 11,
-                                      fontWeight: i == index ? FontWeight.w700 : FontWeight.w500,
-                                      color: i == index ? OrbitColors.textPrimary : OrbitColors.textSecondary,
-                                    ),
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    ),
-                  ),
-                ),
+            ? _NavBar(
+                tabs: _tabs,
+                index: index,
+                onTap: (i) {
+                  if (i == index) return;
+                  HapticFeedback.selectionClick();
+                  ref.read(tabProvider.notifier).go(i);
+                },
               )
             : null,
       ),
     );
   }
+}
+
+/// The tab bar: a pill slides under the tab you go to, and its icon and label fade into the
+/// selected colours, instead of jumping.
+class _NavBar extends StatelessWidget {
+  const _NavBar({required this.tabs, required this.index, required this.onTap});
+
+  final List<({IconData icon, IconData selected, String label})> tabs;
+  final int index;
+  final ValueChanged<int> onTap;
+
+  static const _duration = Duration(milliseconds: 320);
+  static const _curve = Curves.easeOutCubic;
+
+  @override
+  Widget build(BuildContext context) => ColoredBox(
+    color: OrbitColors.background,
+    child: SafeArea(
+      top: false,
+      child: SizedBox(
+        height: 64,
+        child: Stack(
+          children: [
+            // the pill: one tab wide, sliding to the selected one
+            AnimatedAlign(
+              duration: _duration,
+              curve: _curve,
+              alignment: Alignment(tabs.length == 1 ? 0 : -1 + 2 * index / (tabs.length - 1), 0),
+              child: FractionallySizedBox(
+                widthFactor: 1 / tabs.length,
+                child: Center(
+                  child: Container(
+                    width: 72,
+                    height: 50,
+                    decoration: BoxDecoration(
+                      color: OrbitColors.surfaceHigh,
+                      borderRadius: BorderRadius.circular(16),
+                    ),
+                  ),
+                ),
+              ),
+            ),
+            Row(
+              children: [
+                for (final (i, tab) in tabs.indexed)
+                  Expanded(
+                    child: GestureDetector(
+                      behavior: HitTestBehavior.opaque,
+                      onTap: () => onTap(i),
+                      child: TweenAnimationBuilder<double>(
+                        duration: _duration,
+                        curve: _curve,
+                        tween: Tween(end: i == index ? 1 : 0),
+                        builder: (context, t, _) {
+                          final color = Color.lerp(OrbitColors.textSecondary, OrbitColors.textPrimary, t)!;
+                          return Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: [
+                              Icon(t > .5 ? tab.selected : tab.icon, size: 21, color: color),
+                              const SizedBox(height: 4),
+                              Text(
+                                tab.label,
+                                style: TextStyle(
+                                  fontSize: 11,
+                                  fontWeight: FontWeight.lerp(FontWeight.w500, FontWeight.w700, t),
+                                  color: color,
+                                ),
+                              ),
+                            ],
+                          );
+                        },
+                      ),
+                    ),
+                  ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    ),
+  );
 }

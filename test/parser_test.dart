@@ -140,6 +140,30 @@ void main() {
       );
       final outbounds = (c['outbounds'] as List).map((o) => (o as Map)['tag']).toList();
       expect(outbounds, ['proxy', 'direct', 'orbit-direct', 'orbit-block', 'orbit-dns']);
+      // relaxed TCP keepalive on what dials out (Go's 15 s probes wake the radio), the panel's kept
+      Map<String, dynamic>? sockopt(String tag) =>
+          (((c['outbounds'] as List).cast<Map>().firstWhere((o) => o['tag'] == tag)['streamSettings'] as Map?)?['sockopt'] as Map?)
+              ?.cast<String, dynamic>();
+      expect(sockopt('proxy'), containsPair('tcpKeepAliveIdle', keepAliveIdle));
+      expect(sockopt('orbit-direct'), containsPair('tcpKeepAliveInterval', keepAliveInterval));
+      expect(sockopt('orbit-block'), isNull);
+      final panel = Server(
+        name: 'P',
+        outbounds: [
+          {
+            ..._vless('proxy'),
+            'streamSettings': {
+              'network': 'raw',
+              'sockopt': {'tcpKeepAliveIdle': 30},
+            },
+          },
+        ],
+      );
+      final own = buildXrayConfig(server: panel, settings: const OrbitSettings(), logPath: '/x', ruCidrs: const []);
+      expect(
+        ((((own['outbounds'] as List).first as Map)['streamSettings'] as Map)['sockopt'] as Map)['tcpKeepAliveIdle'],
+        30,
+      );
       expect(((c['inbounds'] as List).single as Map)['protocol'], 'tun');
       final rules = ((c['routing'] as Map)['rules'] as List).cast<Map>();
       expect(rules.first['outboundTag'], 'orbit-dns');

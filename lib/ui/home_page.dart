@@ -13,8 +13,11 @@ import 'package:orbit/widgets/orbit_button.dart';
 import 'package:orbit/widgets/power_button.dart';
 import 'package:orbit/widgets/orbit_widgets.dart';
 
+/// Once a second for the connection timer, and only while Orbit is on screen.
 final _tickerProvider = StreamProvider.autoDispose<DateTime>(
-  (ref) => Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now()),
+  (ref) => ref.watch(appVisibleProvider)
+      ? Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now())
+      : const Stream<DateTime>.empty(),
 );
 
 class HomePage extends ConsumerWidget {
@@ -222,10 +225,13 @@ class _ConnectArea extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        PowerButton(
-          style: ref.watch(settingsProvider.select((s) => s.buttonStyle)),
-          state: buttonState,
-          onTap: ui.picking ? null : () => ref.read(connectionProvider.notifier).toggle(),
+        // the turning orbit repaints on its own layer, not the whole screen with it
+        RepaintBoundary(
+          child: PowerButton(
+            style: ref.watch(settingsProvider.select((s) => s.buttonStyle)),
+            state: buttonState,
+            onTap: ui.picking ? null : () => ref.read(connectionProvider.notifier).toggle(),
+          ),
         ),
         // the button's box leaves room for the orbit and its glow; pull the text up, clear of the ring
         Transform.translate(

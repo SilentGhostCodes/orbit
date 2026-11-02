@@ -56,6 +56,7 @@ class OrbitVpnService : VpnService() {
         if (intent?.action == VpnStore.ACTION_STOP) {
             // a qWDTT start may be waiting for VK (or the captcha) on the worker: cut it short
             qwdtt?.stop()
+            VpnStore.log(this, "отключение: кнопкой")
             worker.execute { stop(null) }
             return START_NOT_STICKY
         }
@@ -222,6 +223,8 @@ class OrbitVpnService : VpnService() {
 
     override fun onRevoke() {
         // another VPN took over, or the user turned Orbit off in Android's settings
+        VpnStore.log(this, "отключение: VPN забрало другое приложение или его выключили в настройках Android")
+        qwdtt?.stop()
         worker.execute { stop(null) }
     }
 

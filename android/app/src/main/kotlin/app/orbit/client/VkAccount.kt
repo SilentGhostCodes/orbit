@@ -445,6 +445,8 @@ class VkActivity : Activity() {
             LinearLayout(this).apply {
                 orientation = LinearLayout.VERTICAL
                 setBackgroundColor(Color.parseColor("#1B1C1F"))
+                // edge to edge (Android 15): padded clear of the status and navigation bars
+                fitsSystemWindows = true
                 addView(title)
                 addView(hint)
                 addView(

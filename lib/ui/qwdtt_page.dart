@@ -34,7 +34,7 @@ class QwdttPage extends ConsumerWidget {
         padding: const EdgeInsets.fromLTRB(20, 4, 20, 24),
         children: [
           Text(
-            'WireGuard через звонки ВК — для мобильного интернета с белыми списками. Бета.',
+            'WireGuard через звонки ВК — для мобильного интернета с белыми списками.',
             style: OrbitText.caption.copyWith(fontSize: 13, height: 1.4),
           ),
           const SectionLabel('Вход в ВК'),

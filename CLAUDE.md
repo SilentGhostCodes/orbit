@@ -50,7 +50,7 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   once, and `Shell` opens the add sheet with it, adding at once (`submit: true`). Accepted:
   happ://crypt…, happ://add/, incy://crypt1/, incy://add/, incy://import/; other happ:// links get
   a clear error.
-- qWDTT (beta branch; WireGuard through VK call TURN relays, github.com/kostfuciy/qWDTT, GPL-3.0):
+- qWDTT (released in 1.11.0, still badged «бета» in Форматы подписок only; WireGuard through VK call TURN relays, github.com/kostfuciy/qWDTT, GPL-3.0):
   CI builds its Go client at `core/QWDTT_COMMIT` into `jniLibs/<abi>/libqwdtt.so`, a program the
   VPN service runs (`QwdttTunnel`), as qWDTT's own app does; it is not linked into Orbit. A profile
   (`QwdttProfile`, from qwdtt://, wdtt://, JSON or a subscription's `profiles`) is a `Server`
@@ -73,6 +73,11 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   mode (`QwdttCaptcha` → -captcha-mode auto/wv/rjs), DNS for VK, and every qWDTT profile's hashes
   (`QwdttProfilePage`, saved through `SubscriptionsNotifier.updateServer`; a URL subscription's
   refresh replaces the edits).
+- Battery: tabs off screen have their tickers off (`TickerMode` in `Shell`), the connection timer and
+  the 10-minute subscription check run only while the app is visible (`appVisibleProvider`), the
+  connect button repaints on its own layer, and every dialing outbound gets TCP keepalive 120 s /
+  60 s (`keepAliveIdle`/`keepAliveInterval`, a panel's own sockopt wins) instead of Go's 15 s.
+- The tab bar (`_NavBar`): a pill slides to the selected tab, icon and label colours animate.
 - Releases: pushes to `main` publish releases (Latest), to `beta` pre-releases; «[no release]» in
   a commit message builds without publishing.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's

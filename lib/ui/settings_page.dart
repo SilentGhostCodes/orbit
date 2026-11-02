@@ -111,7 +111,7 @@ class SettingsPage extends ConsumerWidget {
               divider: false,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PingSettingsPage())),
             ),
-            const SectionLabel('qWDTT · бета'),
+            const SectionLabel('Звонки ВК'),
             OrbitTile(
               title: 'qWDTT',
               subtitle: 'Звонки ВК для белых списков: вход, потоки, капча, хеши',
