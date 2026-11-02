@@ -19,8 +19,14 @@ class Server {
   Map<String, dynamic> get _stream =>
       proxy['streamSettings'] is Map<String, dynamic> ? proxy['streamSettings'] as Map<String, dynamic> : const {};
 
-  /// "VLESS Reality", "VLESS XHTTP", "Hysteria2"…
-  String get protocol => protocolLabel(
+  /// A qWDTT profile (see QwdttProfile): reached through VK calls, started by the VPN service.
+  bool get isQwdtt {
+    final settings = proxy['settings'];
+    return settings is Map && settings['orbitQwdtt'] == true;
+  }
+
+  /// "VLESS Reality", "VLESS XHTTP", "Hysteria2", "qWDTT"…
+  String get protocol => isQwdtt ? 'qWDTT' : protocolLabel(
     (proxy['protocol'] ?? '').toString(),
     transport: _stream['network']?.toString(),
     reality: _stream['security'] == 'reality',

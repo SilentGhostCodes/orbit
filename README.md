@@ -8,6 +8,9 @@ A minimal Android VPN client, written from scratch in Flutter/Dart on top of
   Encrypted links open too: `incy://crypt1` and Happ's `happ://crypt…crypt5` (keys in `assets/happ/`,
   rebuilt by `tool/happ_keys.py`).
   The User-Agent is `Orbit/<version> (android)`: in Remnawave, add `orbit` to the XRAY_JSON rule.
+- **qWDTT (beta):** WireGuard through VK call relays for mobile whitelists — `qwdtt://`, `wdtt://`,
+  JSON and qWDTT subscriptions. The client is [qWDTT](https://github.com/kostfuciy/qWDTT)'s own
+  (GPL-3.0, built in CI at `core/QWDTT_COMMIT`), run by the VPN service as a separate program.
 - **Protocols:** whatever Xray-core runs — VLESS (Reality, XHTTP, WS, gRPC…), VMess, Trojan,
   Shadowsocks, Hysteria2; CDN setups with XHTTP `extra`/`downloadSettings` included.
 - **Tunnel:** Android's VPN descriptor goes straight to Xray's own `tun` inbound; one Xray instance

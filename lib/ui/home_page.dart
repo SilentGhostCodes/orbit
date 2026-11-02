@@ -13,8 +13,11 @@ import 'package:orbit/widgets/orbit_button.dart';
 import 'package:orbit/widgets/power_button.dart';
 import 'package:orbit/widgets/orbit_widgets.dart';
 
+/// Once a second for the connection timer, and only while Orbit is on screen.
 final _tickerProvider = StreamProvider.autoDispose<DateTime>(
-  (ref) => Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now()),
+  (ref) => ref.watch(appVisibleProvider)
+      ? Stream.periodic(const Duration(seconds: 1), (_) => DateTime.now())
+      : const Stream<DateTime>.empty(),
 );
 
 class HomePage extends ConsumerWidget {
@@ -191,6 +194,18 @@ class _ConnectArea extends ConsumerWidget {
 
     final Widget label = switch (status.state) {
       VpnState.connected => const _Connected(key: ValueKey('on')),
+      VpnState.connecting when status.vk == 'captcha' => const _Status(
+        key: ValueKey('captcha'),
+        title: 'ВК просит капчу',
+        subtitle: 'Подтверди, что ты не робот, — и подключение продолжится',
+        color: OrbitColors.warning,
+      ),
+      VpnState.connecting when status.vk == 'join' => const _Status(
+        key: ValueKey('join'),
+        title: 'Подтверди вход в звонок',
+        subtitle: 'ВК не пустил в звонок сам — открой и нажми «Присоединиться»',
+        color: OrbitColors.warning,
+      ),
       VpnState.connecting => const _Status(key: ValueKey('connecting'), title: 'Подключение…'),
       VpnState.disconnecting => const _Status(key: ValueKey('disconnecting'), title: 'Отключение…'),
       _ when ui.picking => const _Status(
@@ -210,10 +225,13 @@ class _ConnectArea extends ConsumerWidget {
     return Column(
       mainAxisSize: MainAxisSize.min,
       children: [
-        PowerButton(
-          style: ref.watch(settingsProvider.select((s) => s.buttonStyle)),
-          state: buttonState,
-          onTap: ui.picking ? null : () => ref.read(connectionProvider.notifier).toggle(),
+        // the turning orbit repaints on its own layer, not the whole screen with it
+        RepaintBoundary(
+          child: PowerButton(
+            style: ref.watch(settingsProvider.select((s) => s.buttonStyle)),
+            state: buttonState,
+            onTap: ui.picking ? null : () => ref.read(connectionProvider.notifier).toggle(),
+          ),
         ),
         // the button's box leaves room for the orbit and its glow; pull the text up, clear of the ring
         Transform.translate(
@@ -223,6 +241,15 @@ class _ConnectArea extends ConsumerWidget {
             child: AnimatedSwitcher(duration: const Duration(milliseconds: 250), child: label),
           ),
         ),
+        if (status.state == VpnState.connecting && status.vk != null)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(32, 0, 32, 8),
+            child: OrbitTonalButton(
+              label: status.vk == 'join' ? 'Открыть звонок' : 'Пройти капчу',
+              icon: status.vk == 'join' ? Icons.phone_in_talk_rounded : Icons.verified_user_outlined,
+              onPressed: () => Native.openVkPrompt(),
+            ),
+          ),
       ],
     );
   }

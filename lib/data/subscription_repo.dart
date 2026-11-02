@@ -6,6 +6,7 @@ import 'package:orbit/core/libxray.dart';
 import 'package:orbit/data/device.dart';
 import 'package:orbit/data/models.dart';
 import 'package:orbit/data/panel_client.dart';
+import 'package:orbit/data/qwdtt.dart';
 import 'package:orbit/data/subscription_parser.dart';
 import 'package:orbit/data/wrapped_link.dart';
 import 'package:path_provider/path_provider.dart';
@@ -74,6 +75,15 @@ class SubscriptionRepo {
   /// The servers in a subscription body: Xray JSON as it is, anything else through libXray's share
   /// link parser (plain links, base64, Xray node lists).
   static Future<List<Server>> parseBody(String body) async {
+    // a qWDTT subscription: {"subscriptionName":…, "profiles":[…]}
+    if (body.contains('"profiles"')) {
+      try {
+        final qwdtt = Qwdtt.parse(body);
+        if (qwdtt != null) return dedupeNames([for (final p in qwdtt.profiles) p.toServer()]);
+      } on QwdttException catch (e) {
+        throw SubscriptionException(e.message);
+      }
+    }
     final xray = parseXrayJson(body);
     if (xray != null) return dedupeNames(xray);
     try {

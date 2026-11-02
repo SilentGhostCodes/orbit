@@ -5,7 +5,7 @@ import 'package:flutter/services.dart';
 /// What the VPN service reports. It runs in its own process (":vpn"), so this is all the app
 /// learns about it: a state, when it got there, and an error if it stopped on one.
 class VpnStatus {
-  const VpnStatus(this.state, {this.since, this.error, this.server});
+  const VpnStatus(this.state, {this.since, this.error, this.server, this.vk});
 
   final VpnState state;
   final DateTime? since;
@@ -13,6 +13,10 @@ class VpnStatus {
 
   /// The server the tunnel was started with.
   final String? server;
+
+  /// What qWDTT waits for the user to do in VK while connecting: "captcha" or "join" (a call the
+  /// hidden join could not enter, account mode); [Native.openVkPrompt] shows it.
+  final String? vk;
 
   static const disconnected = VpnStatus(VpnState.disconnected);
 
@@ -23,6 +27,7 @@ class VpnStatus {
       since: since == null || since == 0 ? null : DateTime.fromMillisecondsSinceEpoch(since),
       error: (map['error'] as String?)?.isEmpty ?? true ? null : map['error'] as String,
       server: (map['server'] as String?)?.isEmpty ?? true ? null : map['server'] as String,
+      vk: (map['vk'] as String?)?.isEmpty ?? true ? null : map['vk'] as String,
     );
   }
 }
@@ -95,6 +100,17 @@ abstract class Native {
       (await _channel.invokeMapMethod<String, String>('deviceInfo')) ?? const {};
 
   static Future<void> openVpnSettings() => _channel.invokeMethod('openVpnSettings');
+
+  /// What qWDTT waits for in VK ([VpnStatus.vk]): the captcha or the call to join.
+  static Future<void> openVkPrompt() => _channel.invokeMethod('openVkPrompt');
+
+  /// VK sign-in for qWDTT's account mode (a WebView in the VPN process).
+  static Future<void> vkLogin() => _channel.invokeMethod('vkLogin');
+
+  static Future<void> vkLogout() => _channel.invokeMethod('vkLogout');
+
+  /// Whether there is a VK session for qWDTT's account mode.
+  static Future<bool> vkAccount() async => await _channel.invokeMethod<bool>('vkAccount') ?? false;
 
   static Future<void> requestNotifications() => _channel.invokeMethod('requestNotifications');
 }

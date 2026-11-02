@@ -62,7 +62,7 @@ class MainActivity : FlutterActivity() {
     private fun linkOf(intent: Intent?): String? {
         if (intent?.action != Intent.ACTION_VIEW) return null
         val scheme = intent.data?.scheme?.lowercase() ?: return null
-        if (scheme != "happ" && scheme != "incy") return null
+        if (scheme !in setOf("happ", "incy", "qwdtt", "wdtt")) return null
         return intent.dataString?.takeIf { it.length <= 16384 }
     }
 
@@ -154,6 +154,28 @@ class MainActivity : FlutterActivity() {
                     val model = if (Build.MODEL.startsWith(Build.MANUFACTURER, ignoreCase = true)) Build.MODEL else "$maker ${Build.MODEL}"
                     result.success(mapOf("osVersion" to Build.VERSION.RELEASE, "model" to model))
                 }
+
+                // what qWDTT waits for in VK while connecting: the captcha or a call join
+                "openVkPrompt" -> {
+                    val intent = when (VpnStore.status(this).optString("vk")) {
+                        "join" -> VkActivity.joinIntent(this)
+                        else -> Intent(this, CaptchaActivity::class.java)
+                    }
+                    runCatching { startActivity(intent) }
+                    result.success(null)
+                }
+
+                "vkLogin" -> {
+                    runCatching { startActivity(VkActivity.intent(this, VkActivity.MODE_LOGIN)) }
+                    result.success(null)
+                }
+
+                "vkLogout" -> {
+                    runCatching { startActivity(VkActivity.intent(this, VkActivity.MODE_LOGOUT)) }
+                    result.success(null)
+                }
+
+                "vkAccount" -> result.success(VkAccount.statusFile(this).exists())
 
                 "openVpnSettings" -> {
                     runCatching { startActivity(Intent(Settings.ACTION_VPN_SETTINGS)) }

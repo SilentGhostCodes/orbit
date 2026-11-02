@@ -1,6 +1,7 @@
 import 'dart:convert';
 
 import 'package:orbit/data/models.dart';
+import 'package:orbit/data/qwdtt.dart';
 import 'package:orbit/data/settings.dart';
 import 'package:orbit/util/format.dart';
 
@@ -34,7 +35,8 @@ Map<String, dynamic> _fragmentOutbound(Fragment f) => {
 /// The server's outbounds, with the fragment hop when [fragment] is given and the server has no
 /// chain of its own.
 List<Map<String, dynamic>> serverOutbounds(Server server, {required Fragment? fragment}) {
-  if (fragment == null) return server.outbounds;
+  // qWDTT's WireGuard goes to its client on the phone, not to the internet: nothing to fragment
+  if (fragment == null || server.isQwdtt) return server.outbounds;
   final proxy = Map<String, dynamic>.of(server.proxy);
   final stream = Map<String, dynamic>.of(proxy['streamSettings'] as Map<String, dynamic>? ?? const {});
   final sockopt = Map<String, dynamic>.of(stream['sockopt'] as Map<String, dynamic>? ?? const {});
@@ -43,6 +45,24 @@ List<Map<String, dynamic>> serverOutbounds(Server server, {required Fragment? fr
   stream['sockopt'] = sockopt;
   proxy['streamSettings'] = stream;
   return [proxy, ...server.outbounds.skip(1), _fragmentOutbound(fragment)];
+}
+
+/// TCP keepalive for the tunnel's connections, in seconds. Without it Go probes every idle
+/// connection every 15 s, and on a phone each probe wakes the radio: most of what a connected VPN
+/// costs in battery while nothing is going on. A panel that sets its own keeps it.
+const keepAliveIdle = 120;
+const keepAliveInterval = 60;
+
+Map<String, dynamic> _withKeepAlive(Map<String, dynamic> outbound) {
+  const skip = {'blackhole', 'dns', 'loopback'};
+  final settings = outbound['settings'];
+  if (skip.contains(outbound['protocol']) || (settings is Map && settings['orbitQwdtt'] == true)) return outbound;
+  final stream = Map<String, dynamic>.of(outbound['streamSettings'] as Map<String, dynamic>? ?? const {});
+  final sockopt = Map<String, dynamic>.of(stream['sockopt'] as Map<String, dynamic>? ?? const {});
+  sockopt.putIfAbsent('tcpKeepAliveIdle', () => keepAliveIdle);
+  sockopt.putIfAbsent('tcpKeepAliveInterval', () => keepAliveInterval);
+  stream['sockopt'] = sockopt;
+  return {...outbound, 'streamSettings': stream};
 }
 
 /// The config for pinging [server]: just its outbounds; libXray adds the rest.
@@ -211,8 +231,8 @@ Map<String, dynamic> buildXrayConfig({
       },
     ],
     'outbounds': [
-      ...serverOutbounds(server, fragment: settings.fragmentOptions),
-      {'tag': 'orbit-direct', 'protocol': 'freedom'},
+      for (final o in serverOutbounds(server, fragment: settings.fragmentOptions)) _withKeepAlive(o),
+      _withKeepAlive({'tag': 'orbit-direct', 'protocol': 'freedom'}),
       {'tag': 'orbit-block', 'protocol': 'blackhole'},
       {'tag': 'orbit-dns', 'protocol': 'dns'},
     ],
@@ -226,14 +246,31 @@ Map<String, dynamic> _ownDns(OrbitSettings settings) => {
   'queryStrategy': 'UseIPv4',
 };
 
-/// What the VPN service needs besides the Xray config: per-app rules and the DNS to announce.
-Map<String, dynamic> vpnOptions(OrbitSettings settings, {required String serverName, List<String> notes = const []}) => {
+/// What the VPN service needs besides the Xray config: per-app rules and the DNS to announce, and
+/// for a qWDTT server its profile ([qwdtt]), which the service starts qWDTT's client with.
+Map<String, dynamic> vpnOptions(
+  OrbitSettings settings, {
+  required String serverName,
+  List<String> notes = const [],
+  QwdttProfile? qwdtt,
+  String? deviceId,
+}) => {
   'appsMode': settings.appsMode.name,
   'apps': settings.apps.toList(),
   'dnsIp': settings.dnsChoice.ip,
   'server': serverName,
   'autoConnect': settings.autoConnect,
   'notes': notes,
+  if (qwdtt != null)
+    'qwdtt': {
+      ...qwdtt.toJson(),
+      if (settings.qwdttWorkers > 0) 'workers': settings.qwdttWorkers,
+      'captchaMode': settings.qwdttCaptcha,
+      // the server binds passwords to a device: the same id as the subscription requests' HWID
+      'deviceId': deviceId ?? '',
+      'dns': settings.qwdttDns,
+      'vkAuth': settings.qwdttVkAccount ? 'account' : 'anonymous',
+    },
 };
 
 /// The CIDR lines of an ipverse aggregated list.

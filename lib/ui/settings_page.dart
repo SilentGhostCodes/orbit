@@ -11,6 +11,7 @@ import 'package:orbit/ui/formats_page.dart';
 import 'package:orbit/ui/fragment_page.dart';
 import 'package:orbit/ui/logs_page.dart';
 import 'package:orbit/ui/ping_settings_page.dart';
+import 'package:orbit/ui/qwdtt_page.dart';
 import 'package:orbit/widgets/orbit_widgets.dart';
 
 /// 07 · Settings.
@@ -109,6 +110,14 @@ class SettingsPage extends ConsumerWidget {
               value: s.pingType.label,
               divider: false,
               onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const PingSettingsPage())),
+            ),
+            const SectionLabel('Звонки ВК'),
+            OrbitTile(
+              title: 'qWDTT',
+              subtitle: 'Звонки ВК для белых списков: вход, потоки, капча, хеши',
+              value: s.qwdttVkAccount ? 'Аккаунт ВК' : 'Анонимно',
+              divider: false,
+              onTap: () => Navigator.of(context).push(MaterialPageRoute(builder: (_) => const QwdttPage())),
             ),
             const SectionLabel('Приложение'),
             OrbitTile(

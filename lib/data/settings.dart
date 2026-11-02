@@ -150,6 +150,41 @@ class DnsChoice {
   static DnsChoice byId(String? id) => all.firstWhere((d) => d.id == id, orElse: () => all.first);
 }
 
+/// The DNS qWDTT's client looks VK up with (its -go-dns), under Настройки → qWDTT.
+enum QwdttDns {
+  yandex('yandex', 'Яндекс'),
+  cloudflare('cloudflare', 'Cloudflare'),
+  google('google', 'Google'),
+  dohYandex('doh-yandex', 'Яндекс DoH');
+
+  const QwdttDns(this.id, this.label);
+
+  final String id;
+  final String label;
+
+  static QwdttDns byId(String? id) => values.firstWhere((d) => d.id == id, orElse: () => yandex);
+}
+
+/// How qWDTT gets past VK's «не робот» check (its -captcha-mode), under Настройки → qWDTT.
+enum QwdttCaptcha {
+  /// qWDTT's own solver first, VK's window when it gives up.
+  auto('auto', 'Авто', 'Сначала автоматически, потом окно'),
+
+  /// VK's window at once: slower to start, but nothing guessed.
+  window('wv', 'Сразу окно', 'Решаешь сам, без попыток автоматики'),
+
+  /// Only qWDTT's solver: no window ever, a connection may fail instead.
+  silent('rjs', 'Только автоматически', 'Окно не появится; если не вышло — ошибка');
+
+  const QwdttCaptcha(this.id, this.label, this.hint);
+
+  final String id;
+  final String label;
+  final String hint;
+
+  static QwdttCaptcha byId(String? id) => values.firstWhere((c) => c.id == id, orElse: () => auto);
+}
+
 class OrbitSettings {
   const OrbitSettings({
     this.routing = RoutingMode.bypassRu,
@@ -170,6 +205,10 @@ class OrbitSettings {
     this.pingUrl = defaultPingUrl,
     this.fragmentSettings = Fragment.defaults,
     this.subscriptionRouting = true,
+    this.qwdttDns = 'yandex',
+    this.qwdttVkAccount = false,
+    this.qwdttWorkers = 0,
+    this.qwdttCaptcha = 'auto',
   });
 
   final RoutingMode routing;
@@ -207,6 +246,18 @@ class OrbitSettings {
   /// Use the routing and DNS a server's Xray JSON brings, instead of [routing], where it has them.
   final bool subscriptionRouting;
 
+  /// The DNS qWDTT's client finds VK with ([QwdttDns] ids); Яндекс answers on whitelisted mobile.
+  final String qwdttDns;
+
+  /// qWDTT takes VK call access from the user's VK account ([Native.vkLogin]) instead of anonymously.
+  final bool qwdttVkAccount;
+
+  /// Parallel streams for qWDTT; 0: as the profile says.
+  final int qwdttWorkers;
+
+  /// [QwdttCaptcha] id.
+  final String qwdttCaptcha;
+
   /// The fragmentation to apply, or null when it is off.
   Fragment? get fragmentOptions => fragment ? fragmentSettings : null;
 
@@ -232,6 +283,10 @@ class OrbitSettings {
     String? pingUrl,
     Fragment? fragmentSettings,
     bool? subscriptionRouting,
+    String? qwdttDns,
+    bool? qwdttVkAccount,
+    int? qwdttWorkers,
+    String? qwdttCaptcha,
   }) => OrbitSettings(
     routing: routing ?? this.routing,
     dns: dns ?? this.dns,
@@ -251,6 +306,10 @@ class OrbitSettings {
     pingUrl: pingUrl ?? this.pingUrl,
     fragmentSettings: fragmentSettings ?? this.fragmentSettings,
     subscriptionRouting: subscriptionRouting ?? this.subscriptionRouting,
+    qwdttDns: qwdttDns ?? this.qwdttDns,
+    qwdttVkAccount: qwdttVkAccount ?? this.qwdttVkAccount,
+    qwdttWorkers: qwdttWorkers ?? this.qwdttWorkers,
+    qwdttCaptcha: qwdttCaptcha ?? this.qwdttCaptcha,
   );
 
   Map<String, dynamic> toJson() => {
@@ -272,6 +331,10 @@ class OrbitSettings {
     'pingUrl': pingUrl,
     'fragmentSettings': fragmentSettings.toJson(),
     'subscriptionRouting': subscriptionRouting,
+    'qwdttDns': qwdttDns,
+    'qwdttVkAccount': qwdttVkAccount,
+    'qwdttWorkers': qwdttWorkers,
+    'qwdttCaptcha': qwdttCaptcha,
   };
 
   factory OrbitSettings.fromJson(Map<String, dynamic> j) => OrbitSettings(
@@ -293,6 +356,10 @@ class OrbitSettings {
     pingUrl: j['pingUrl'] as String? ?? defaultPingUrl,
     fragmentSettings: Fragment.fromJson(j['fragmentSettings']),
     subscriptionRouting: j['subscriptionRouting'] as bool? ?? true,
+    qwdttDns: QwdttDns.byId(j['qwdttDns'] as String?).id,
+    qwdttVkAccount: j['qwdttVkAccount'] as bool? ?? false,
+    qwdttWorkers: ((j['qwdttWorkers'] as num?)?.toInt() ?? 0).clamp(0, 108),
+    qwdttCaptcha: QwdttCaptcha.byId(j['qwdttCaptcha'] as String?).id,
   );
 
   static const _key = 'orbit_settings';

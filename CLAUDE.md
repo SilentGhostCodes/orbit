@@ -50,6 +50,36 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   once, and `Shell` opens the add sheet with it, adding at once (`submit: true`). Accepted:
   happ://crypt…, happ://add/, incy://crypt1/, incy://add/, incy://import/; other happ:// links get
   a clear error.
+- qWDTT (released in 1.11.0, still badged «бета» in Форматы подписок only; WireGuard through VK call TURN relays, github.com/kostfuciy/qWDTT, GPL-3.0):
+  CI builds its Go client at `core/QWDTT_COMMIT` into `jniLibs/<abi>/libqwdtt.so`, a program the
+  VPN service runs (`QwdttTunnel`), as qWDTT's own app does; it is not linked into Orbit. A profile
+  (`QwdttProfile`, from qwdtt://, wdtt://, JSON or a subscription's `profiles`) is a `Server`
+  whose proxy outbound is a placeholder (`settings.orbitQwdtt` + `settings.qwdtt`); `vpnOptions`
+  passes the profile (plus HWID as device id, `qwdttDns`). The service starts the client before
+  the TUN, waits for the server's WireGuard config (wg-turn.conf in filesDir/qwdtt), and puts an
+  Xray `wireguard` outbound to 127.0.0.1:<port> in the placeholder's place. VK's captcha: the
+  client prints `CAPTCHA_SOLVE|mode|uri|token`; "auto" is answered `error:unsupported` at once,
+  manual ones open `CaptchaActivity` (WebView in the :vpn process, catches
+  `captchaNotRobot.check`'s success_token) from a notification or the home screen
+  (`VpnStatus.vk == 'captcha'`). Not pinged.
+- qWDTT «Аккаунт ВК» (`OrbitSettings.qwdttVkAccount` → `vkAuth: account`): `VkAccount` (VPN process)
+  joins each call in a hidden WebView with the user's VK session (cookies of the :vpn WebView,
+  signed in through `VkActivity`), catches `turn_server` and gives it to the client as
+  `-vk-creds-file` at start and as `TURN_CREDS|hash|base64` when it prints `VK_AUTH_REQUIRED|hash`
+  (creds last ~9 min). A hidden join that fails asks the user (`VpnStatus.vk == 'join'`, notification,
+  `VkActivity` join mode). The app process has no WebView: it learns the session from
+  `vk_account.json` (`Native.vkAccount`). Sign-in/out go through `VkActivity` modes.
+- Настройки → qWDTT (`QwdttPage`): VK sign-in mode, streams (`qwdttWorkers`, 0 = profile's), captcha
+  mode (`QwdttCaptcha` → -captcha-mode auto/wv/rjs), DNS for VK, and every qWDTT profile's hashes
+  (`QwdttProfilePage`, saved through `SubscriptionsNotifier.updateServer`; a URL subscription's
+  refresh replaces the edits).
+- Battery: tabs off screen have their tickers off (`TickerMode` in `Shell`), the connection timer and
+  the 10-minute subscription check run only while the app is visible (`appVisibleProvider`), the
+  connect button repaints on its own layer, and every dialing outbound gets TCP keepalive 120 s /
+  60 s (`keepAliveIdle`/`keepAliveInterval`, a panel's own sockopt wins) instead of Go's 15 s.
+- The tab bar (`_NavBar`): a pill slides to the selected tab, icon and label colours animate.
+- Releases: pushes to `main` publish releases (Latest), to `beta` pre-releases; «[no release]» in
+  a commit message builds without publishing.
 - Настройки → «Форматы подписок» (`FormatsPage`) lists what can be added; keep it and About's
   «Подписки» row in step when a format is added.
 

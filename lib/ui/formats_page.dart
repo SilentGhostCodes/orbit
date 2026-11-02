@@ -26,6 +26,15 @@ class FormatsPage extends StatelessWidget {
         const SizedBox(height: 10),
         _EncryptedCard(title: 'INCY', subtitle: 'Ссылки из приложения INCY', formats: const ['incy://crypt1']),
         const SizedBox(height: 4),
+        const SectionLabel('Туннель через звонки'),
+        _EncryptedCard(
+          title: 'qWDTT',
+          subtitle: 'WireGuard через звонки ВК — для белых списков',
+          icon: Icons.phone_in_talk_rounded,
+          badge: 'бета',
+          formats: const ['qwdtt://', 'wdtt://', 'JSON', 'подписка'],
+        ),
+        const SizedBox(height: 4),
         const SectionLabel('Обычные'),
         const OrbitTile(title: 'Ссылка на подписку', value: 'https://'),
         const OrbitTile(title: 'Ссылка-переадресация', subtitle: 'Страница, которая открывает Happ или INCY'),
@@ -39,10 +48,18 @@ class FormatsPage extends StatelessWidget {
 
 class _EncryptedCard extends StatelessWidget {
   // ignore: prefer_const_constructors_in_immutables
-  _EncryptedCard({required this.title, required this.subtitle, required this.formats});
+  _EncryptedCard({
+    required this.title,
+    required this.subtitle,
+    required this.formats,
+    this.icon = Icons.lock_outline_rounded,
+    this.badge,
+  });
 
   final String title;
   final String subtitle;
+  final IconData icon;
+  final String? badge;
   final List<String> formats;
 
   @override
@@ -62,14 +79,29 @@ class _EncryptedCard extends StatelessWidget {
                 color: OrbitColors.accent.withValues(alpha: .14),
                 borderRadius: BorderRadius.circular(11),
               ),
-              child: Icon(Icons.lock_outline_rounded, size: 19, color: OrbitColors.accent),
+              child: Icon(icon, size: 19, color: OrbitColors.accent),
             ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(title, style: OrbitText.bodyStrong),
+                  Row(
+                    children: [
+                      Text(title, style: OrbitText.bodyStrong),
+                      if (badge != null) ...[
+                        const SizedBox(width: 8),
+                        Container(
+                          padding: const EdgeInsets.symmetric(horizontal: 7, vertical: 2),
+                          decoration: BoxDecoration(
+                            color: OrbitColors.accent.withValues(alpha: .16),
+                            borderRadius: BorderRadius.circular(6),
+                          ),
+                          child: Text(badge!, style: OrbitText.caption.copyWith(fontSize: 11, color: OrbitColors.accent)),
+                        ),
+                      ],
+                    ],
+                  ),
                   const SizedBox(height: 2),
                   Text(subtitle, style: OrbitText.caption),
                 ],
