@@ -73,8 +73,12 @@ Orbit is written from scratch (not a fork). Flutter UI in `lib/`, the tunnel in 
   mode (`QwdttCaptcha` → -captcha-mode auto/wv/rjs), DNS for VK, and every qWDTT profile's hashes
   (`QwdttProfilePage`, saved through `SubscriptionsNotifier.updateServer`; a URL subscription's
   refresh replaces the edits).
-- Battery: tabs off screen have their tickers off (`TickerMode` in `Shell`), the connection timer and
-  the 10-minute subscription check run only while the app is visible (`appVisibleProvider`), the
+- Subscription updates (the user's rule, for whitelists): only when Orbit is opened or launched
+  (`refreshAll(onlyDue: true)`) and by hand; no timer, nothing in the background. A refresh never
+  reconnects: the running tunnel keeps its copy, a changed server applies on the next connect. A
+  failed refresh changes nothing (servers are stored only after a successful fetch).
+- Battery: tabs off screen have their tickers off (`TickerMode` in `Shell`), the connection timer
+  runs only while the app is visible (`appVisibleProvider`), the
   connect button repaints on its own layer, and every dialing outbound gets TCP keepalive 120 s /
   60 s (`keepAliveIdle`/`keepAliveInterval`, a panel's own sockopt wins) instead of Go's 15 s.
 - The tab bar (`_NavBar`): a pill slides to the selected tab, icon and label colours animate.

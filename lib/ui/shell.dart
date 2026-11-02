@@ -14,8 +14,8 @@ import 'package:orbit/ui/subscription_sheets.dart';
 
 final tabProvider = NotifierProvider<TabNotifier, int>(TabNotifier.new);
 
-/// Whether Orbit is on screen. Anything that ticks on its own (the connection timer, subscription
-/// updates) stops while it is not, so the app does not wake the phone in the background.
+/// Whether Orbit is on screen. Anything that ticks on its own (the connection timer) stops while it
+/// is not, so the app does not wake the phone in the background.
 final appVisibleProvider = NotifierProvider<AppVisibleNotifier, bool>(AppVisibleNotifier.new);
 
 class AppVisibleNotifier extends Notifier<bool> {
@@ -47,9 +47,6 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
     (icon: Icons.tune_rounded, selected: Icons.tune_rounded, label: 'Настройки'),
   ];
 
-  /// Subscriptions due for an update while the app stays open (intervals go down to an hour).
-  Timer? _updates;
-
   /// happ:// and incy:// links arriving while Orbit is open.
   StreamSubscription<void>? _links;
   var _openingLink = false;
@@ -60,20 +57,10 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     WidgetsBinding.instance.addPostFrameCallback((_) => _onLaunch());
     _links = DeepLinks.available.listen((_) => _openLink());
-    _startUpdates();
-  }
-
-  void _startUpdates() {
-    _updates?.cancel();
-    _updates = Timer.periodic(
-      const Duration(minutes: 10),
-      (_) => ref.read(subscriptionsProvider.notifier).refreshAll(onlyDue: true),
-    );
   }
 
   @override
   void dispose() {
-    _updates?.cancel();
     _links?.cancel();
     WidgetsBinding.instance.removeObserver(this);
     super.dispose();
@@ -85,12 +72,9 @@ class _ShellState extends ConsumerState<Shell> with WidgetsBindingObserver {
     ref.read(appVisibleProvider.notifier).set(visible);
     if (visible) {
       ref.invalidate(vkAccountProvider);
+      // Subscriptions are updated only here (on opening Orbit), at launch and by hand: never on a
+      // timer, in the background or while the app just stays open, and never with a reconnect.
       ref.read(subscriptionsProvider.notifier).refreshAll(onlyDue: true);
-      _startUpdates();
-    } else if (state == AppLifecycleState.paused || state == AppLifecycleState.hidden) {
-      // nothing to update on screen: the next opening catches up on what is due
-      _updates?.cancel();
-      _updates = null;
     }
   }
 

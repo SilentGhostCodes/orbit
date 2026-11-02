@@ -181,10 +181,6 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
   Future<void> refresh(String id) async {
     final sub = state.where((s) => s.id == id).firstOrNull;
     if (sub?.url == null) return;
-    String serverJson(Subscription? s, String? name) =>
-        jsonEncode(s?.servers.where((x) => x.name == name).firstOrNull?.toJson());
-    final running = ref.read(vpnStatusProvider).value?.server;
-    final before = serverJson(sub, running);
     final updating = ref.read(updatingProvider.notifier);
     updating.set(id, true);
     try {
@@ -210,11 +206,8 @@ class SubscriptionsNotifier extends Notifier<List<Subscription>> {
     } finally {
       updating.set(id, false);
     }
-    // the running tunnel uses the old copy of the server; restart it only if that server changed
-    final after = serverJson(state.where((s) => s.id == id).firstOrNull, running);
-    if (ref.read(settingsProvider).activeSubscription == id && before != after) {
-      await ref.read(connectionProvider.notifier).reconnectIfConnected();
-    }
+    // The running tunnel keeps its own copy of the server and is never restarted here: an update
+    // must not drop the connection (a game, a test). The new config applies on the next connect.
   }
 
   /// [onlyDue]: just the ones whose auto-update interval has passed. Errors are left out quietly.
